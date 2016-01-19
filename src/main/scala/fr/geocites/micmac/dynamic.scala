@@ -19,15 +19,31 @@ package fr.geocites.micmac
 
 import fr.geocites.micmac.sir.Integrator
 
+import scala.concurrent.duration.Duration
 import scalaz._
 import Scalaz._
+import sir._
 
 object dynamic {
+
+  def populationToFly(sir: SIR, integrator: Integrator, epidemyDuration: Duration, mobilityRate: Double, epsilon: Double, nbAirports: Int): Long = {
+    def steps(sir: SIR, step: Int = 0): Int = {
+      val newSir = integrator(sir)
+      if (newSir.i < epsilon) step
+      else steps(newSir, step + 1)
+    }
+
+    val nbSteps = steps(sir)
+    def dt = epidemyDuration.toHours / nbSteps
+    def totalPopulationToFly = (sir.s + sir.i + sir.r) * mobilityRate * dt
+    (totalPopulationToFly / nbSteps).toLong
+  }
 
   def evolve[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =
     sir.modify(integrator)(t)
 
   def updateStep[M[_]: Monad: Step, T] = Kleisli[M, T, T] { t: T => implicitly[Step[M]].modify(_ + 1).map(_ => t) }
+
   def stopAfter[M[_]: Monad: Step](s: Long) = implicitly[Step[M]].get.map { _ >= s }
 
 }

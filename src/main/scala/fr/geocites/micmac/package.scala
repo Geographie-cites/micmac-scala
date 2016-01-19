@@ -37,15 +37,15 @@ package object micmac {
     def get: M[Long]
   }
 
-  case class Territory(length: Int, width: Int)
+  case class Territory(length: Int, width: Int) {
+    def area = length * width
+  }
   @Lenses case class SIR(s: Double, i: Double, r: Double, alpha: Double, beta: Double) {
     def normalisedBeta =  beta / (s + i + r)
   }
-  @Lenses case class Network(nodes: Vector[Airport], edges: Vector[(Int, Int)])
-  @Lenses case class Airport(i: Int, x: Double, y: Double, sir: SIR)
-  //@Lenses case class World(network: Network)
 
-  case class Plane(capacity: Int, sir: SIR)
-  case class Flight(plain: Plane, destination: Airport)
+  @Lenses case class Network(nodes: Vector[Airport], edges: Vector[(Int, Int)])
+  @Lenses case class Airport(i: Int, x: Double, y: Double, sir: SIR, populationToFly: Double)
+  @Lenses case class Plane(capacity: Int, sir: SIR, destination: Airport, speed: Double)
 
 }

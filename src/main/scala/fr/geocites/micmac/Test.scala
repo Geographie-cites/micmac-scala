@@ -25,23 +25,44 @@ import context._
 import monocle.std.vector._
 import monocle.function._
 import dynamic._
-
+import concurrent.duration._
+import sir._
 
 object Test extends App {
 
 
-  val territory = Territory(100, 100)
+  val territory = Territory(1000, 1000)
+  val nodes = 100
+  val populationByNode = 10000
+  val alpha = 0.2
+  val beta = 0.5
+
+  val airportIntegrator = integrator(1, 0.01)
+
+  def sir(s: Double, i: Double, r: Double) =
+    SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
+
+
+  val populationToFly =
+    dynamic.populationToFly(
+      sir = sir(s = populationByNode - 1, i = 1, r = 0),
+      integrator = airportIntegrator,
+      epidemyDuration = 60 days,
+      epsilon = 0.001,
+      mobilityRate = 0.012,
+      nbAirports = nodes
+    )
+
 
   val airports =
     randomAirports[Context](
       territory,
-      Airport(_,_,_, SIR(s = 1000, i = 1, r = 0,  alpha = 0.2, beta = 0.5)),
+      Airport(_,_,_,  sir(s = populationByNode - 1, i = 1, r = 0), populationToFly / nodes),
       4
     )
 
   val world = randomNetwork[Context](2)
 
-  val airportIntegrator = sir.integrator(1, 0.01)
 
   val allAirports = (Network.nodes composeTraversal Each.each)
 
@@ -58,9 +79,10 @@ object Test extends App {
       step,
       stopAfter[Context](100)
     )
-  
+
   val initialState = MicMacState(0, new Random(42))
 
+  println(populationToFly)
   println((initialise >>= simulation).eval(initialState))
 
  // println(simulation.run())
