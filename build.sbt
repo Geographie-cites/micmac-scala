@@ -7,5 +7,7 @@ resolvers += "bintray-djspiewak-maven" at "https://dl.bintray.com/djspiewak/mave
 
 libraryDependencies += "com.codecommit" %% "emm" % "0.1-c65281a"
 
+libraryDependencies += "com.assembla.scala-incubator" %% "graph-core" % "1.10.1"
+
 resolvers += Resolver.sonatypeRepo("snapshots") 
 
