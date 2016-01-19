@@ -22,12 +22,19 @@ import monocle.macros.Lenses
 import scala.concurrent.duration.Duration
 import scala.util.Random
 import simulacrum._
+import scalaz._
+import Scalaz._
 
 
 package object micmac {
 
   @typeclass trait RNG[M[_]] {
     def rng: M[Random]
+  }
+
+  @typeclass trait Step[M[_]] {
+    def modify(f: Long => Long): M[Unit]
+    def get: M[Long]
   }
 
   case class Territory(length: Int, width: Int)

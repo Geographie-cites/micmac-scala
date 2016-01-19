@@ -19,9 +19,15 @@ package fr.geocites.micmac
 
 import fr.geocites.micmac.sir.Integrator
 
+import scalaz._
+import Scalaz._
+
 object dynamic {
 
   def evolve[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =
     sir.modify(integrator)(t)
+
+  def updateStep[M[_]: Monad: Step, T] = Kleisli[M, T, T] { t: T => implicitly[Step[M]].modify(_ + 1).map(_ => t) }
+  def stopAfter[M[_]: Monad: Step](s: Long) = implicitly[Step[M]].get.map { _ >= s }
 
 }

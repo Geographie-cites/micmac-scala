@@ -37,9 +37,7 @@ object network {
       buildAirport(i, x, y)
     }
 
-    Kleisli[M, Unit, Vector[Airport]] { _ =>
-      (0 until number).toVector.traverseU(randomAirport)
-    }
+    (0 until number).toVector.traverseU(randomAirport)
   }
 
   def randomNetwork[M[_]: Monad](edges: Int)(implicit mRNG: RNG[M]) = Kleisli[M, Vector[Airport], Network] {  airports: Vector[Airport] =>

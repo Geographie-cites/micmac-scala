@@ -24,6 +24,7 @@ import network._
 import context._
 import monocle.std.vector._
 import monocle.function._
+import dynamic._
 
 
 object Test extends App {
@@ -40,21 +41,34 @@ object Test extends App {
 
   val world = randomNetwork[Context](2)
 
-  val initialState = MicMacState(new Random(42))
   val airportIntegrator = sir.integrator(1, 0.01)
 
-
-  //val evolution = dynamic.evolve[Network](airportIntegrator, Network.nodes compo)
-
-//  dynamic.evolve(airportIntegrator, Wo)(airports andThen world)
-//
-
   val allAirports = (Network.nodes composeTraversal Each.each)
-  def evolve = dynamic.evolve(airportIntegrator, allAirports composeLens Airport.sir)(_)
 
-  val network  = (airports andThen world).apply().eval(initialState)
+  def evolve = Kleisli[Context, Network, Network] { network =>
+    dynamic.evolve[Network](airportIntegrator, allAirports composeLens Airport.sir)(network).point[Context]
+  }
 
-  println(evolve(network))
+  val initialise = airports >>= world
+
+  val step: Kleisli[Context, Network, Network] = evolve andThen updateStep
+
+  val simulation =
+    context.run(
+      step,
+      stopAfter[Context](100)
+    )
+  
+  val initialState = MicMacState(0, new Random(42))
+
+  println((initialise >>= simulation).eval(initialState))
+
+ // println(simulation.run())
+
+
+  //val network  = (Kleisli { _: Any => airports } andThen world).apply().eval(initialState)
+
+  //println(evolve(network))
 
 
 

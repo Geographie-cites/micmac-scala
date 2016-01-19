@@ -18,15 +18,43 @@
 package fr.geocites.micmac
 
 
+import monocle.macros.Lenses
+
 import scala.util.Random
+import scalaz._
+import Scalaz._
 
 object context {
 
-  case class MicMacState(rng: Random)
-  type Context[X] = scalaz.State[MicMacState, X]
+  @Lenses case class MicMacState(step: Long, rng: Random)
+  type Context[X] = State[MicMacState, X]
 
   implicit def sRNG = new RNG[Context] {
-    override def rng: Context[Random] = scalaz.State.get[MicMacState].map(_.rng)
+    override def rng: Context[Random] = State.get[MicMacState].map(_.rng)
+  }
+
+  implicit def sStep = new Step[Context] {
+    override def modify(f: (Long) => Long): Context[Unit] = State.modify[MicMacState](MicMacState.step.modify(f))
+    override def get: Context[Long] = State.gets[MicMacState, Long](_.step)
+  }
+
+  def run[T](step: Kleisli[Context, T, T], stop: Context[Boolean]): Kleisli[Context, T, T] = {
+    def runStep(result: T, s: MicMacState): (MicMacState, T) = {
+      val (s1, stop1) = stop.run(s)
+
+      if(stop1) (s1, result)
+      else {
+        val (s2, result2) = step.run(result).run(s1)
+        runStep(result2, s2)
+      }
+    }
+
+    Kleisli[Context, T, T] { t =>
+      State { s: MicMacState =>
+        val (s1, res1) = step.run(t).run(s)
+        runStep(res1, s1)
+      }
+    }
   }
 
 }
