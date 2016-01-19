@@ -22,6 +22,9 @@ import fr.geocites.micmac.sir.Integrator
 import scala.concurrent.duration.Duration
 import scalaz._
 import Scalaz._
+import monocle.std.vector._
+import monocle.function.all._
+
 import sir._
 
 object dynamic {
@@ -39,8 +42,46 @@ object dynamic {
     (totalPopulationToFly / nbSteps).toLong
   }
 
-  def evolve[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =
-    sir.modify(integrator)(t)
+  def epidemy[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) = sir.modify(integrator)(t)
+
+  def updateStock(airport: Airport) = Airport.stockToFly.modify(_ + airport.populationToFly)
+
+  def fillPlanes[M[_]: Monad: RNG](
+    airport: Airport,
+    planeSize: Int,
+    buildPlane: (Int, Int, Int) => Plane) =
+    for {
+      rng <- implicitly[RNG[M]].rng
+    } yield {
+      if(airport.stockToFly < planeSize) (airport, Vector.empty)
+      else {
+        def multinomial(v: Vector[Int], d: Double, i: Int = 0): Int =
+          if(d <= v(i)) i else multinomial(v, d - v(i), i + 1)
+
+        def fillPlane(sir: Vector[Int], acc: Vector[Int] = Vector.fill(3)(0)): (Vector[Int], Plane) =
+          if(acc.sum >= planeSize) (sir, buildPlane(acc(0), acc(1), acc(2)))
+          else {
+            val selected = multinomial(sir, rng.nextDouble * sir.sum)
+            val newAcc = index[Vector[Int], Int, Int](selected).modify(_ + 1)(acc)
+            val newSir = index[Vector[Int], Int, Int](selected).modify(_ - 1)(sir)
+            fillPlane(newSir, newAcc)
+          }
+
+
+        def fillPlanes(sir: Vector[Int], stockToFly: Double, acc: List[Plane] = List.empty): (List[Plane], Vector[Int]) =
+          if(stockToFly < planeSize) (acc, sir)
+          else {
+            val (newSir, plane) = fillPlane(sir)
+            fillPlanes(newSir, stockToFly - plane.passengers, plane :: acc)
+          }
+
+        val initPopulations = SIR.vector.get(airport.sir).map(_.toInt)
+        val (planes, newPopulation) = fillPlanes(initPopulations, airport.stockToFly)
+        val deltaPopulation = (initPopulations zip newPopulation).map { case(i, n) => i - n }
+        val newAirport = (Airport.sir composeLens SIR.vector).modify { p => (p zip deltaPopulation).map { case (p, d) => p - d } }(airport)
+        (Airport.stockToFly.modify(_ - planes.map(_.passengers).sum)(newAirport), planes.toVector)
+      }
+    }
 
   def updateStep[M[_]: Monad: Step, T] = Kleisli[M, T, T] { t: T => implicitly[Step[M]].modify(_ + 1).map(_ => t) }
 

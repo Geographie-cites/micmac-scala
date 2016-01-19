@@ -33,6 +33,7 @@ object Test extends App {
 
   val territory = Territory(1000, 1000)
   val nodes = 100
+  val edges = 100
   val populationByNode = 10000
   val alpha = 0.2
   val beta = 0.5
@@ -41,7 +42,6 @@ object Test extends App {
 
   def sir(s: Double, i: Double, r: Double) =
     SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
-
 
   val populationToFly =
     dynamic.populationToFly(
@@ -53,21 +53,19 @@ object Test extends App {
       nbAirports = nodes
     )
 
-
   val airports =
     randomAirports[Context](
       territory,
-      Airport(_,_,_,  sir(s = populationByNode - 1, i = 1, r = 0), populationToFly / nodes),
-      4
+      Airport(_,_,_,  sir(s = populationByNode - 1, i = 1, r = 0), populationToFly / nodes, 0),
+      nodes
     )
 
-  val world = randomNetwork[Context](2)
-
+  val world = randomNetwork[Context](edges)
 
   val allAirports = (Network.nodes composeTraversal Each.each)
 
   def evolve = Kleisli[Context, Network, Network] { network =>
-    dynamic.evolve[Network](airportIntegrator, allAirports composeLens Airport.sir)(network).point[Context]
+    dynamic.epidemy[Network](airportIntegrator, allAirports composeLens Airport.sir)(network).point[Context]
   }
 
   val initialise = airports >>= world
