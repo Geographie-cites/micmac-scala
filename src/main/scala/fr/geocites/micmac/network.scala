@@ -29,13 +29,13 @@ object network {
     number: Int) = {
 
     def randomAirport(i: Int): M[Airport] =
-    for {
-      rng <- implicitly[RNG[M]].rng
-    } yield {
-      val x = (rng.nextDouble * territory.length)
-      val y = (rng.nextDouble * territory.width)
-      buildAirport(i, x, y)
-    }
+      for {
+        rng <- implicitly[RNG[M]].rng
+      } yield {
+        val x = (rng.nextDouble * territory.length)
+        val y = (rng.nextDouble * territory.width)
+        buildAirport(i, x, y)
+      }
 
     (0 until number).toVector.traverseU(randomAirport)
   }

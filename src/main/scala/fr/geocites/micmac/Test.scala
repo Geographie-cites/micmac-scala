@@ -56,16 +56,14 @@ object Test extends App {
   val airports =
     randomAirports[Context](
       territory,
-      Airport(_,_,_,  sir(s = populationByNode - 1, i = 1, r = 0), populationToFly / nodes, 0),
+      Airport(_,_,_,  sir(s = populationByNode - 1, i = 1, r = 0), populationToFly / nodes),
       nodes
     )
 
   val world = randomNetwork[Context](edges)
 
-  val allAirports = (Network.nodes composeTraversal Each.each)
-
   def evolve = Kleisli[Context, Network, Network] { network =>
-    dynamic.epidemy[Network](airportIntegrator, allAirports composeLens Airport.sir)(network).point[Context]
+    dynamic.updateSIRs[Network](airportIntegrator, Network.airports composeLens Airport.sir)(network).point[Context]
   }
 
   val initialise = airports >>= world

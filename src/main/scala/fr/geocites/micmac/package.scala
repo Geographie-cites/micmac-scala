@@ -17,9 +17,10 @@
   */
 package fr.geocites
 
+import monocle.function._
 import monocle.macros.Lenses
+import monocle.std.vector._
 
-import scala.concurrent.duration.Duration
 import scala.util.Random
 import simulacrum._
 import scalaz._
@@ -51,13 +52,26 @@ package object micmac {
     def total = s + i + r
   }
 
-  @Lenses case class Network(nodes: Vector[Airport], edges: Vector[(Int, Int)])
-  @Lenses case class Airport(i: Int, x: Double, y: Double, sir: SIR, populationToFly: Double, stockToFly: Double) {
-    def population = sir.total
+  object Network {
+    def airports = (Network.nodes composeTraversal Each.each)
   }
 
-  @Lenses case class Plane(capacity: Int, sir: SIR, destination: Airport, speed: Double) {
-    def passengers = sir.total
+  type Edge = (Int, Int)
+
+  @Lenses case class Network(nodes: Vector[Airport], edges: Vector[Edge])
+
+  object Airport {
+    def stock = Airport.sir composeLens SIR.vector
+    def population(a: Airport) = Airport.stock.get(a).sum
   }
+
+  @Lenses case class Airport(i: Int, x: Double, y: Double, sir: SIR, populationToFly: Double)
+
+  object Plane {
+    def stock = Plane.sir composeLens SIR.vector
+    def passengers(p: Plane) = Plane.stock.get(p).sum
+  }
+
+  @Lenses case class Plane(capacity: Int, sir: SIR, origin: Int, destination: Int, departure: Int)
 
 }

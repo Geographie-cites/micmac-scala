@@ -24,7 +24,7 @@ import scalaz._
 import Scalaz._
 import monocle.std.vector._
 import monocle.function.all._
-
+import monocle.function.At.at
 import sir._
 
 object dynamic {
@@ -42,45 +42,40 @@ object dynamic {
     (totalPopulationToFly / nbSteps).toLong
   }
 
-  def epidemy[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) = sir.modify(integrator)(t)
+  def updateSIRs[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =
+    sir.modify(integrator)(t)
 
-  def updateStock(airport: Airport) = Airport.stockToFly.modify(_ + airport.populationToFly)
+
 
   def fillPlanes[M[_]: Monad: RNG](
     airport: Airport,
     planeSize: Int,
-    buildPlane: (Int, Int, Int) => Plane) =
+    buildPlane: (Int, Int, Int) => Plane): M[(Airport, List[Plane])] =
     for {
       rng <- implicitly[RNG[M]].rng
     } yield {
-      if(airport.stockToFly < planeSize) (airport, Vector.empty)
-      else {
-        def multinomial(v: Vector[Int], d: Double, i: Int = 0): Int =
-          if(d <= v(i)) i else multinomial(v, d - v(i), i + 1)
+      def multinomial(v: Vector[Double], d: Double, i: Int = 0): Int =
+        if(d <= v(i)) i else multinomial(v, d - v(i), i + 1)
 
-        def fillPlane(sir: Vector[Int], acc: Vector[Int] = Vector.fill(3)(0)): (Vector[Int], Plane) =
-          if(acc.sum >= planeSize) (sir, buildPlane(acc(0), acc(1), acc(2)))
-          else {
-            val selected = multinomial(sir, rng.nextDouble * sir.sum)
-            val newAcc = index[Vector[Int], Int, Int](selected).modify(_ + 1)(acc)
-            val newSir = index[Vector[Int], Int, Int](selected).modify(_ - 1)(sir)
-            fillPlane(newSir, newAcc)
-          }
+      def fillPlane(airport: Airport, plane: Plane = buildPlane(0, 0, 0)): (Airport, Plane) =
+        if (Plane.passengers(plane) >= planeSize) (airport, plane)
+        else {
+          val selected = multinomial(Airport.stock.get(airport), rng.nextDouble * Airport.population(airport))
+          def updateAirport = (Airport.stock composeOptional index(selected)).modify(_ - 1) andThen Airport.populationToFly.modify(_ - 1)
+          val newAirport = updateAirport(airport)
+          val newPlane = (Plane.stock composeOptional index(selected)).modify(_ + 1)(plane)
+          fillPlane(newAirport, newPlane)
+        }
 
+      def fillPlanes(airport: Airport, planes: List[Plane] = List.empty): (Airport, List[Plane]) =
+        // Plane should be full to leave
+        if(Airport.populationToFly.get(airport) < planeSize) (airport, planes)
+        else {
+          val (newAirport, plane) = fillPlane(airport)
+          fillPlanes(newAirport, plane :: planes)
+        }
 
-        def fillPlanes(sir: Vector[Int], stockToFly: Double, acc: List[Plane] = List.empty): (List[Plane], Vector[Int]) =
-          if(stockToFly < planeSize) (acc, sir)
-          else {
-            val (newSir, plane) = fillPlane(sir)
-            fillPlanes(newSir, stockToFly - plane.passengers, plane :: acc)
-          }
-
-        val initPopulations = SIR.vector.get(airport.sir).map(_.toInt)
-        val (planes, newPopulation) = fillPlanes(initPopulations, airport.stockToFly)
-        val deltaPopulation = (initPopulations zip newPopulation).map { case(i, n) => i - n }
-        val newAirport = (Airport.sir composeLens SIR.vector).modify { p => (p zip deltaPopulation).map { case (p, d) => p - d } }(airport)
-        (Airport.stockToFly.modify(_ - planes.map(_.passengers).sum)(newAirport), planes.toVector)
-      }
+      fillPlanes(airport)
     }
 
   def updateStep[M[_]: Monad: Step, T] = Kleisli[M, T, T] { t: T => implicitly[Step[M]].modify(_ + 1).map(_ => t) }
