@@ -37,6 +37,8 @@ object Test extends App {
   val populationByNode = 10000
   val alpha = 0.2
   val beta = 0.5
+  val planeCapacity = 80
+  val planeSpeed = 0.5
 
   val airportIntegrator = integrator(1, 0.01)
 
@@ -60,33 +62,46 @@ object Test extends App {
       nodes
     )
 
-  val world = randomNetwork[Context](edges)
+  val world = randomNetwork[Context](edges).map( w => MicMacState(w, Vector.empty))
 
-  def evolve = Kleisli[Context, Network, Network] { network =>
-    dynamic.updateSIRs[Network](airportIntegrator, Network.airports composeLens Airport.sir)(network).point[Context]
+  def evolve[M[_]: Monad: RNG: Step](implicit modelState: ModelState[M, MicMacState]) = {
+    def updateAirportSIR = Kleisli[M, MicMacState, MicMacState] { state =>
+      dynamic.updateSIRs[MicMacState](
+        airportIntegrator,
+        MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.sir
+      )(state).point[M]
+    }
+    updateAirportSIR andThen
+     dynamic.planeDepartures[M](
+       planeCapacity = planeCapacity,
+       destination = dynamic.randomDestination[M],
+       buildSIR = sir) andThen dynamic.planeArrivals[M](planeSpeed)
   }
 
-  val initialise = airports >>= world
 
-  val step: Kleisli[Context, Network, Network] = evolve andThen updateStep
-
-  val simulation =
-    context.run(
-      step,
-      stopAfter[Context](100)
-    )
-
-  val initialState = MicMacState(0, new Random(42))
-
-  println(populationToFly)
-  println((initialise >>= simulation).eval(initialState))
-
- // println(simulation.run())
-
-
-  //val network  = (Kleisli { _: Any => airports } andThen world).apply().eval(initialState)
-
-  //println(evolve(network))
+//  val initialise = airports >>= world
+//
+//  def step =
+//    evolve andThen
+//      Kleisli{ s => updateStep.map(_ => s) }
+//
+//  val simulation =
+//    context.run(
+//      step,
+//      stopAfter[Context](100)
+//    )
+//
+//  val initialState = SimulationState(0, new Random(42))
+//
+//  println(populationToFly)
+//  println((initialise >>= simulation).eval(initialState))
+//
+//  println(simulation.run())
+//
+//
+//  val network  = (Kleisli { _: Any => airports } andThen world).apply().eval(initialState)
+//
+//  println(evolve(network))
 
 
 

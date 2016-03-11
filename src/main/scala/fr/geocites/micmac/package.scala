@@ -38,6 +38,11 @@ package object micmac {
     def get: M[Long]
   }
 
+  trait ModelState[M[_], S] {
+    def get: M[S]
+    def set(s: S): M[Unit]
+  }
+
   case class Territory(length: Int, width: Int) {
     def area = length * width
   }
@@ -52,26 +57,30 @@ package object micmac {
     def total = s + i + r
   }
 
-  object Network {
-    def airports = (Network.nodes composeTraversal Each.each)
-  }
 
   type Edge = (Int, Int)
 
-  @Lenses case class Network(nodes: Vector[Airport], edges: Vector[Edge])
+  object Network {
+    def neighbours(network: Network, index: Int) =
+      network.routes.filter(_._1 == index).map{_._2}
+
+    def airportsTraversal = (Network.airports composeTraversal Each.each)
+  }
+
+  @Lenses case class Network(airports: Vector[Airport], routes: Vector[Edge])
 
   object Airport {
     def stock = Airport.sir composeLens SIR.vector
     def population(a: Airport) = Airport.stock.get(a).sum
   }
 
-  @Lenses case class Airport(i: Int, x: Double, y: Double, sir: SIR, populationToFly: Double)
+  @Lenses case class Airport(index: Int, x: Double, y: Double, sir: SIR, populationToFly: Double)
 
   object Plane {
     def stock = Plane.sir composeLens SIR.vector
     def passengers(p: Plane) = Plane.stock.get(p).sum
   }
 
-  @Lenses case class Plane(capacity: Int, sir: SIR, origin: Int, destination: Int, departure: Int)
+  @Lenses case class Plane(capacity: Int, sir: SIR, origin: Int, destination: Int, departureStep: Long)
 
 }

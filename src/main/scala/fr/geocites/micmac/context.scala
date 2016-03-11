@@ -26,20 +26,27 @@ import Scalaz._
 
 object context {
 
-  @Lenses case class MicMacState(step: Long, rng: Random)
-  type Context[X] = State[MicMacState, X]
+  @Lenses case class MicMacState(network: Network, flyingPlanes: Vector[Plane])
+  @Lenses case class SimulationState(step: Long, rng: Random, micMacState: MicMacState)
+
+  type Context[X] = State[SimulationState, X]
+
+  implicit def modelState = new ModelState[Context, MicMacState] {
+    override def get: Context[MicMacState] = State.get[SimulationState].map(_.micMacState)
+    override def set(state: MicMacState): Context[Unit] = State.modify[SimulationState](SimulationState.micMacState.set(state))
+  }
 
   implicit def sRNG = new RNG[Context] {
-    override def rng: Context[Random] = State.get[MicMacState].map(_.rng)
+    override def rng: Context[Random] = State.get[SimulationState].map(_.rng)
   }
 
   implicit def sStep = new Step[Context] {
-    override def modify(f: (Long) => Long): Context[Unit] = State.modify[MicMacState](MicMacState.step.modify(f))
-    override def get: Context[Long] = State.gets[MicMacState, Long](_.step)
+    override def modify(f: (Long) => Long): Context[Unit] = State.modify[SimulationState](SimulationState.step.modify(f))
+    override def get: Context[Long] = State.gets[SimulationState, Long](_.step)
   }
 
   def run[T](step: Kleisli[Context, T, T], stop: Context[Boolean]): Kleisli[Context, T, T] = {
-    def runStep(result: T, s: MicMacState): (MicMacState, T) = {
+    def runStep(result: T, s: SimulationState): (SimulationState, T) = {
       val (s1, stop1) = stop.run(s)
 
       if(stop1) (s1, result)
@@ -50,7 +57,7 @@ object context {
     }
 
     Kleisli[Context, T, T] { t =>
-      State { s: MicMacState =>
+      State { s: SimulationState =>
         val (s1, res1) = step.run(t).run(s)
         runStep(res1, s1)
       }
