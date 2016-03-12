@@ -27,14 +27,14 @@ import Scalaz._
 object context {
 
   @Lenses case class MicMacState(network: Network, flyingPlanes: Vector[Plane])
-  @Lenses case class SimulationState(step: Long, rng: Random, micMacState: MicMacState)
+  @Lenses case class SimulationState(step: Long, rng: Random)
 
   type Context[X] = State[SimulationState, X]
 
-  implicit def modelState = new ModelState[Context, MicMacState] {
+  /*implicit def modelState = new ModelState[Context, MicMacState] {
     override def get: Context[MicMacState] = State.get[SimulationState].map(_.micMacState)
     override def set(state: MicMacState): Context[Unit] = State.modify[SimulationState](SimulationState.micMacState.set(state))
-  }
+  }*/
 
   implicit def sRNG = new RNG[Context] {
     override def rng: Context[Random] = State.get[SimulationState].map(_.rng)

@@ -38,10 +38,10 @@ package object micmac {
     def get: M[Long]
   }
 
-  trait ModelState[M[_], S] {
+  /*trait ModelState[M[_], S] {
     def get: M[S]
     def set(s: S): M[Unit]
-  }
+  }*/
 
   case class Territory(length: Int, width: Int) {
     def area = length * width

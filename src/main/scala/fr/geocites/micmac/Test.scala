@@ -64,7 +64,7 @@ object Test extends App {
 
   val world = randomNetwork[Context](edges).map( w => MicMacState(w, Vector.empty))
 
-  def evolve[M[_]: Monad: RNG: Step](implicit modelState: ModelState[M, MicMacState]) = {
+  def evolve[M[_]: Monad: RNG: Step] = {
     def updateAirportSIR = Kleisli[M, MicMacState, MicMacState] { state =>
       dynamic.updateSIRs[MicMacState](
         airportIntegrator,
@@ -75,28 +75,27 @@ object Test extends App {
      dynamic.planeDepartures[M](
        planeCapacity = planeCapacity,
        destination = dynamic.randomDestination[M],
-       buildSIR = sir) andThen dynamic.planeArrivals[M](planeSpeed)
+       buildSIR = sir) andThen
+      dynamic.planeArrivals[M](planeSpeed) andThen
+      Kleisli { s => updateStep[M].map(_ => s) }
   }
 
 
-//  val initialise = airports >>= world
-//
-//  def step =
-//    evolve andThen
-//      Kleisli{ s => updateStep.map(_ => s) }
-//
-//  val simulation =
-//    context.run(
-//      step,
-//      stopAfter[Context](100)
-//    )
-//
-//  val initialState = SimulationState(0, new Random(42))
-//
+  val initialise = airports >>= world
+
+  val simulation =
+    initialise >>=
+      context.run(
+        evolve,
+        stopAfter[Context](100)
+      )
+
+  val initialState = SimulationState(0, new Random(42))
+
 //  println(populationToFly)
 //  println((initialise >>= simulation).eval(initialState))
 //
-//  println(simulation.run())
+  println(simulation.run(initialState))
 //
 //
 //  val network  = (Kleisli { _: Any => airports } andThen world).apply().eval(initialState)
