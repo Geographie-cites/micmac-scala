@@ -49,12 +49,8 @@ package object micmac {
 
   @typeclass trait Observable[M[_]] {
     def maxIStep: Field[M, Option[MaxIStep]]
+    def infectionStep: Field[M, Vector[Option[Long]]]
   }
-
-  /*trait ModelState[M[_], S] {
-    def get: M[S]
-    def set(s: S): M[Unit]
-  }*/
 
   case class Territory(length: Int, width: Int) {
     def area = length * width
@@ -95,5 +91,11 @@ package object micmac {
   }
 
   @Lenses case class Plane(capacity: Int, sir: SIR, origin: Int, destination: Int, departureStep: Long)
+
+  object MicMacState {
+    def flyingPlaneTraversal = (MicMacState.flyingPlanes composeTraversal Each.each)
+  }
+
+  @Lenses case class MicMacState(network: Network, flyingPlanes: Vector[Plane])
 
 }

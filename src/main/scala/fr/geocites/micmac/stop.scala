@@ -17,8 +17,6 @@
   */
 package fr.geocites.micmac
 
-import fr.geocites.micmac.context.MicMacState
-
 import scalaz._
 import Scalaz._
 
@@ -32,7 +30,7 @@ object stop {
     def finished(maxIStep: Option[MaxIStep], step: Long) =
       maxIStep match {
         case Some(maxIStep) =>
-          if(step >= maxIStep.step + 1) totalI(state) < 1.0
+          if(step >= maxIStep.step + 1) total(_.i)(state) < 1.0
           else false
         case None => false
       }

@@ -43,8 +43,8 @@ object Test extends App {
   val planeCapacity = 80
   val planeSpeed = 0.5
 
-  val airportIntegrator = integrator(1, 0.01)
-  val planeIntegrator = integrator(1, 0.01)
+  val airportIntegrator = integrator(beta / populationByNode, 0.01)
+  val planeIntegrator = integrator(beta / populationByNode, 0.01)
 
   def sir(s: Double, i: Double, r: Double) =
     SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
@@ -62,7 +62,14 @@ object Test extends App {
   val airports =
     randomAirports[Context](
       territory,
-      Airport(_,_,_,  sir(s = populationByNode - 1, i = 1, r = 0), populationToFly / nodes),
+      (index, x, y, infected) =>
+        Airport(
+          index,
+          x,
+          y,
+          sir(s = populationByNode - infected, infected, r = 0),
+          populationToFly
+        ),
       nodes
     )
 
@@ -86,12 +93,14 @@ object Test extends App {
     updateAirportSIR andThen updatePlaneSIR andThen
      dynamic.planeDepartures[M](
        planeCapacity = planeCapacity,
+       populationToFly = populationToFly,
        destination = dynamic.randomDestination[M],
        buildSIR = sir) andThen
       dynamic.planeArrivals[M](planeSpeed) andThen
-      updateMaxStepI[M] andThen updateStep[M]
+      updateMaxStepI[M] andThen
+      updateStep[M] andThen
+      updateInfectedNodes[M]
   }
-
 
   val initialise = airports >>= world
 
@@ -99,29 +108,9 @@ object Test extends App {
     initialise >>=
       context.run(
         evolve,
-        or(endOfEpidemy[Context], stopAfter[Context](10000))
-      )
+        or(endOfEpidemy[Context], stopAfter[Context](20000))
+      ) andThen indicators[Context]
 
-  val initialState = SimulationState(0, new Random(42), None)
-
-//  println(populationToFly)
-//  println((initialise >>= simulation).eval(initialState))
-//
-  println(simulation.run(initialState))
-//
-//
-//  val network  = (Kleisli { _: Any => airports } andThen world).apply().eval(initialState)
-//
-//  println(evolve(network))
-
-
-
-
-//
-//  println(.map(evolution))
-
-  //println(airports.map { world.run }.eval(initialState))
-
-
+  println(simulation.run(initialState(nodes, new Random(42))))
 
 }

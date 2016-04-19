@@ -22,14 +22,14 @@ import fr.geocites.micmac.context._
 import scalaz._
 import Scalaz._
 
+
 object observable {
 
-  def totalI(state: MicMacState) =
-    state.flyingPlanes.map(_.sir.i).sum +
-      state.network.airports.map(_.sir.i).sum
+  def total(on: SIR => Double)(state: MicMacState) =
+    state.flyingPlanes.map(p => on(p.sir)).sum + state.network.airports.map(a => on(a.sir)).sum
 
   def updateMaxStepI[M[_]: Monad](implicit obs: Observable[M], step: Step[M]) = Kleisli[M, MicMacState, MicMacState] { state: MicMacState =>
-    val totalIValue = totalI(state)
+    val totalIValue = total(SIR.i.get)(state)
 
     def update(step: Long) =
       obs.maxIStep.modify {
@@ -43,5 +43,35 @@ object observable {
       _ <- update(s)
     } yield state
   }
+
+  case class Indicators(maxIStep: MaxIStep, infectedRatio: Double)
+
+  def indicators[M[_]: Monad](implicit obs: Observable[M]) = Kleisli[M, MicMacState, Option[Indicators]] { state =>
+    def infectedRatio = {
+      def totalPopulation = total(_.total)(state)
+      def recovered = total(_.r)(state)
+      recovered / totalPopulation
+    }
+
+    for {
+      maxIStep <- obs.maxIStep.get
+    } yield maxIStep.map(mis => Indicators(mis, infectedRatio))
+
+  }
+
+  def updateInfectedNodes[M[_]: Monad](implicit obs: Observable[M], step: Step[M]) = Kleisli[M, MicMacState, MicMacState] { state =>
+    def update(infectionSteps: Vector[Option[Long]], currentStep: Long) =
+      infectionSteps zip (MicMacState.network composeLens Network.airports).get(state) map {
+        case (is, a) =>
+          def infected = a.sir.i > 0
+          is orElse (if(infected) Some(currentStep) else None)
+      }
+
+    for {
+      s <- step.step.get
+      _ <- obs.infectionStep.modify(update(_, s))
+    } yield state
+  }
+
 
 }

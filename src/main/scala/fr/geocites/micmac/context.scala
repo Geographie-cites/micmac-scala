@@ -27,8 +27,21 @@ import monocle.state.all._
 
 object context {
 
-  @Lenses case class MicMacState(network: Network, flyingPlanes: Vector[Plane])
-  @Lenses case class SimulationState(step: Long, rng: Random, maxIStep: Option[MaxIStep])
+  def initialState(airports: Int, rng: Random) = {
+    SimulationState(
+      step = 0,
+      rng = rng,
+      maxIStep = None,
+      infectionStep = Vector.fill(airports)(None)
+    )
+  }
+
+  @Lenses case class SimulationState(
+    step: Long,
+    rng: Random,
+    maxIStep: Option[MaxIStep] = None,
+    infectionStep: Vector[Option[Long]]
+  )
 
   type Context[X] = State[SimulationState, X]
 
@@ -39,6 +52,7 @@ object context {
 
   implicit def sObservable = new Observable[Context] {
     override def maxIStep = SimulationState.maxIStep.mod
+    override def infectionStep = SimulationState.infectionStep.mod
   }
 
   implicit def sRNG = new RNG[Context] {

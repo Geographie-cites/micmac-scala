@@ -23,21 +23,26 @@ import Scalaz._
 
 object network {
 
-  def randomAirports[M[_]: Monad: RNG](
+  def randomAirports[M[_]: Monad](
     territory: Territory,
-    buildAirport: (Int, Double, Double) => Airport,
-    number: Int) = {
+    buildAirport: (Int, Double, Double, Int) => Airport,
+    number: Int)(implicit rng: RNG[M]) = {
 
-    def randomAirport(i: Int): M[Airport] =
+
+    def randomAirport(i: Int, infectedIndex: Int): M[Airport] =
       for {
         rng <- implicitly[RNG[M]].rng
       } yield {
         val x = (rng.nextDouble * territory.length)
         val y = (rng.nextDouble * territory.width)
-        buildAirport(i, x, y)
+        def infected = if(infectedIndex == i) 1 else 0
+        buildAirport(i, x, y, infected)
       }
 
-    (0 until number).toVector.traverseU(randomAirport)
+    for {
+      infectedIndex <- rng.rng.map(_.nextInt(number))
+      airports <- (0 until number).toVector.traverseU(randomAirport(_, infectedIndex))
+    } yield airports
   }
 
   def randomNetwork[M[_]: Monad](edges: Int)(implicit mRNG: RNG[M]) = Kleisli[M, Vector[Airport], Network] {  airports: Vector[Airport] =>

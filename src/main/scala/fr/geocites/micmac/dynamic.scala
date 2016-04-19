@@ -17,9 +17,7 @@
   */
 package fr.geocites.micmac
 
-import fr.geocites.micmac.context.MicMacState
 import fr.geocites.micmac.sir.Integrator
-
 import scala.concurrent.duration.Duration
 import scalaz._
 import Scalaz._
@@ -30,7 +28,14 @@ import sir._
 
 object dynamic {
 
-  def populationToFly(sir: SIR, integrator: Integrator, epidemyDuration: Duration, mobilityRate: Double, epsilon: Double, nbAirports: Int): Long = {
+  def populationToFly(
+    sir: SIR,
+    integrator: Integrator,
+    epidemyDuration: Duration,
+    mobilityRate: Double,
+    epsilon: Double,
+    nbAirports: Int): Double = {
+
     def steps(sir: SIR, step: Int = 0): Int = {
       val newSir = integrator(sir)
       if (newSir.i < epsilon) step
@@ -38,9 +43,10 @@ object dynamic {
     }
 
     val nbSteps = steps(sir)
-    def dt = epidemyDuration.toHours / nbSteps
-    def totalPopulationToFly = (sir.s + sir.i + sir.r) * mobilityRate * dt
-    (totalPopulationToFly / nbSteps).toLong
+    def dt = epidemyDuration.toHours.toDouble
+    def totalPopulationToFly = sir.total * mobilityRate * dt
+
+    (totalPopulationToFly / nbSteps / nbAirports)
   }
 
   def updateSIRs[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =
@@ -57,6 +63,7 @@ object dynamic {
 
   def planeDepartures[M[_]: Monad: RNG: Step](
     planeCapacity: Int,
+    populationToFly: Double,
     destination: (Airport, Network) => M[Airport],
     buildSIR: (Double, Double, Double) => SIR) = Kleisli[M, MicMacState, MicMacState] { modelState =>
     def departures(state: MicMacState): M[Vector[(Airport, List[Plane])]] =
@@ -82,8 +89,11 @@ object dynamic {
     } yield {
       val (newAirports, departedPlanes) = v.unzip
 
-      ((MicMacState.network composeLens Network.airports).set(newAirports) andThen
-        MicMacState.flyingPlanes.modify(_ ++ departedPlanes.flatten)) (modelState)
+      def setNewAirports = (MicMacState.network composeLens Network.airports) set newAirports
+      def updatePopulationToFly = (MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.populationToFly) modify (_ + populationToFly)
+      def addDepartingPlanes = MicMacState.flyingPlanes modify(_ ++ departedPlanes.flatten)
+
+      (setNewAirports andThen updatePopulationToFly andThen addDepartingPlanes) (modelState)
     }
   }
 
@@ -141,10 +151,10 @@ object dynamic {
 
       def fillPlanes(airport: Airport, planes: List[Plane] = List.empty): M[(Airport, List[Plane])] =
         // Plane should be full to leave
-        if(Airport.populationToFly.get(airport) < planeCapacity) (airport, planes).point[M]
+        if (Airport.populationToFly.get(airport) < planeCapacity) (airport, planes).point[M]
         else
           for {
-            plane <-  buildPlane(0, 0, 0)
+            plane <- buildPlane(0, 0, 0)
             filled <- fillPlane(airport, plane)
             (newAirport, newPlane) = filled
             res <- fillPlanes(newAirport, newPlane :: planes)
