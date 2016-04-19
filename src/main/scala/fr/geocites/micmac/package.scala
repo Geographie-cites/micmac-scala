@@ -29,13 +29,24 @@ import Scalaz._
 
 package object micmac {
 
+  type Field[M[_], A] = (A => A) => M[A]
+
+  implicit class getSetModDecorator[M[_], A](f: Field[M, A]) {
+    def get = f(identity)
+    def set(a: A) = f(_ => a)
+    def modify(m: A => A) = f(m)
+  }
+
   @typeclass trait RNG[M[_]] {
     def rng: M[Random]
   }
 
   @typeclass trait Step[M[_]] {
-    def modify(f: Long => Long): M[Unit]
-    def get: M[Long]
+    def step: Field[M, Long]
+  }
+
+  @typeclass trait Observable[M[_]] {
+    def maxIStep: Field[M, Option[Long]]
   }
 
   /*trait ModelState[M[_], S] {

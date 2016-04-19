@@ -100,7 +100,7 @@ object Test extends App {
         stopAfter[Context](100)
       )
 
-  val initialState = SimulationState(0, new Random(42))
+  val initialState = SimulationState(0, new Random(42), None)
 
 //  println(populationToFly)
 //  println((initialise >>= simulation).eval(initialState))

@@ -64,7 +64,7 @@ object dynamic {
         airport =>
           def buildPlane(s: Int, i: Int, r: Int) =
             for {
-              step <- implicitly[Step[M]].get
+              step <- implicitly[Step[M]].step.get
               dest <- destination(airport, state.network)
             } yield Plane(
               capacity = planeCapacity,
@@ -112,7 +112,7 @@ object dynamic {
       }
 
       for {
-        step <- implicitly[Step[M]].get
+        step <- implicitly[Step[M]].step.get
       } yield {
         val (arrived, inFlight) = MicMacState.flyingPlanes.get(modelState).span(isArrived(_, step))
         def airports = (MicMacState.network composeLens Network.airports) get modelState
@@ -153,7 +153,7 @@ object dynamic {
       fillPlanes(airport)
     }
 
-  def updateStep[M[_]: Monad](implicit step: Step[M]) = step.modify(_ + 1)
-  def stopAfter[M[_]: Monad](s: Long)(implicit step: Step[M]) = step.get.map { _ >= s }
+  def updateStep[M[_]: Monad](implicit step: Step[M]) = step.step.modify(_ + 1)
+  def stopAfter[M[_]: Monad](s: Long)(implicit step: Step[M]) = step.step.get.map { _ >= s }
 
 }

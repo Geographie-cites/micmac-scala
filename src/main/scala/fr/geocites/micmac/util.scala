@@ -22,7 +22,7 @@ import Scalaz._
 
 object util {
 
-  implicit def monadUnitToKleisli[M[_]: Monad, B](m: M[Unit]) =
-    Kleisli[M, B, B] { a: B => m.map(_ => a) }
+  implicit def monadUnitToKleisli[M[_]: Monad, A, B](m: M[B]) =
+    Kleisli[M, A, A] { a: A => m.map(_ => a) }
 
 }

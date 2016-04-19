@@ -23,11 +23,12 @@ import monocle.macros.Lenses
 import scala.util.Random
 import scalaz._
 import Scalaz._
+import monocle.state.all._
 
 object context {
 
   @Lenses case class MicMacState(network: Network, flyingPlanes: Vector[Plane])
-  @Lenses case class SimulationState(step: Long, rng: Random)
+  @Lenses case class SimulationState(step: Long, rng: Random, maxIStep: Option[Long])
 
   type Context[X] = State[SimulationState, X]
 
@@ -36,13 +37,16 @@ object context {
     override def set(state: MicMacState): Context[Unit] = State.modify[SimulationState](SimulationState.micMacState.set(state))
   }*/
 
+  implicit def sObservable = new Observable[Context] {
+    override def maxIStep = SimulationState.maxIStep.mod
+  }
+
   implicit def sRNG = new RNG[Context] {
     override def rng: Context[Random] = State.get[SimulationState].map(_.rng)
   }
 
-  implicit def sStep = new Step[Context] {
-    override def modify(f: (Long) => Long): Context[Unit] = State.modify[SimulationState](SimulationState.step.modify(f))
-    override def get: Context[Long] = State.gets[SimulationState, Long](_.step)
+  implicit def sStep[T] = new Step[Context] {
+    override def step = SimulationState.step.mod
   }
 
   def run[T](step: Kleisli[Context, T, T], stop: Context[Boolean]): Kleisli[Context, T, T] = {
