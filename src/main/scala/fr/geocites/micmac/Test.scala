@@ -28,6 +28,8 @@ import dynamic._
 import concurrent.duration._
 import sir._
 import util._
+import observable._
+import stop._
 
 object Test extends App {
 
@@ -66,7 +68,7 @@ object Test extends App {
 
   val world = randomNetwork[Context](edges).map( w => MicMacState(w, Vector.empty))
 
-  def evolve[M[_]: Monad: RNG: Step] = {
+  def evolve[M[_]: Monad: RNG: Step: Observable] = {
     def updateAirportSIR = Kleisli[M, MicMacState, MicMacState] { state =>
       dynamic.updateSIRs[MicMacState](
         airportIntegrator,
@@ -87,7 +89,7 @@ object Test extends App {
        destination = dynamic.randomDestination[M],
        buildSIR = sir) andThen
       dynamic.planeArrivals[M](planeSpeed) andThen
-      updateStep[M]
+      updateMaxStepI[M] andThen updateStep[M]
   }
 
 
@@ -97,7 +99,7 @@ object Test extends App {
     initialise >>=
       context.run(
         evolve,
-        stopAfter[Context](100)
+        or(endOfEpidemy[Context], stopAfter[Context](10000))
       )
 
   val initialState = SimulationState(0, new Random(42), None)

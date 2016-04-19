@@ -45,8 +45,10 @@ package object micmac {
     def step: Field[M, Long]
   }
 
+  @Lenses case class MaxIStep(step: Long, value: Double)
+
   @typeclass trait Observable[M[_]] {
-    def maxIStep: Field[M, Option[Long]]
+    def maxIStep: Field[M, Option[MaxIStep]]
   }
 
   /*trait ModelState[M[_], S] {

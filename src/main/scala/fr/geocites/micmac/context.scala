@@ -28,7 +28,7 @@ import monocle.state.all._
 object context {
 
   @Lenses case class MicMacState(network: Network, flyingPlanes: Vector[Plane])
-  @Lenses case class SimulationState(step: Long, rng: Random, maxIStep: Option[Long])
+  @Lenses case class SimulationState(step: Long, rng: Random, maxIStep: Option[MaxIStep])
 
   type Context[X] = State[SimulationState, X]
 
@@ -49,13 +49,13 @@ object context {
     override def step = SimulationState.step.mod
   }
 
-  def run[T](step: Kleisli[Context, T, T], stop: Context[Boolean]): Kleisli[Context, T, T] = {
-    def runStep(result: T, s: SimulationState): (SimulationState, T) = {
-      val (s1, stop1) = stop.run(s)
+  def run[T](step: Kleisli[Context, T, T], stop: Kleisli[Context, T, Boolean]): Kleisli[Context, T, T] = {
+    def runStep(modelState: T, state: SimulationState): (SimulationState, T) = {
+      val (s1, stop1) = stop.run(modelState)(state)
 
-      if(stop1) (s1, result)
+      if(stop1) (s1, modelState)
       else {
-        val (s2, result2) = step.run(result).run(s1)
+        val (s2, result2) = step.run(modelState).run(s1)
         runStep(result2, s2)
       }
     }

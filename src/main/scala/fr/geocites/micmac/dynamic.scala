@@ -154,6 +154,6 @@ object dynamic {
     }
 
   def updateStep[M[_]: Monad](implicit step: Step[M]) = step.step.modify(_ + 1)
-  def stopAfter[M[_]: Monad](s: Long)(implicit step: Step[M]) = step.step.get.map { _ >= s }
+
 
 }
