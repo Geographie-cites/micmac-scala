@@ -27,6 +27,7 @@ import monocle.function._
 import dynamic._
 import concurrent.duration._
 import sir._
+import util._
 
 object Test extends App {
 
@@ -71,13 +72,14 @@ object Test extends App {
         MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.sir
       )(state).point[M]
     }
+
     updateAirportSIR andThen
      dynamic.planeDepartures[M](
        planeCapacity = planeCapacity,
        destination = dynamic.randomDestination[M],
        buildSIR = sir) andThen
       dynamic.planeArrivals[M](planeSpeed) andThen
-      Kleisli { s => updateStep[M].map(_ => s) }
+      updateStep[M]
   }
 
 
