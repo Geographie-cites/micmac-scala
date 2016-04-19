@@ -22,7 +22,7 @@ import scalaz._
 import Scalaz._
 import network._
 import context._
-import monocle.std.vector._
+import monocle.std.all._
 import monocle.function._
 import dynamic._
 import concurrent.duration._
@@ -42,6 +42,7 @@ object Test extends App {
   val planeSpeed = 0.5
 
   val airportIntegrator = integrator(1, 0.01)
+  val planeIntegrator = integrator(1, 0.01)
 
   def sir(s: Double, i: Double, r: Double) =
     SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
@@ -73,7 +74,14 @@ object Test extends App {
       )(state).point[M]
     }
 
-    updateAirportSIR andThen
+    def updatePlaneSIR = Kleisli[M, MicMacState, MicMacState] { state =>
+      dynamic.updateSIRs[MicMacState](
+        planeIntegrator,
+        MicMacState.flyingPlanes composeTraversal Each.each composeLens Plane.sir
+      )(state).point[M]
+    }
+
+    updateAirportSIR andThen updatePlaneSIR andThen
      dynamic.planeDepartures[M](
        planeCapacity = planeCapacity,
        destination = dynamic.randomDestination[M],

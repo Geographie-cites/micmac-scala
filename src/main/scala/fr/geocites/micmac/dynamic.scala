@@ -47,7 +47,9 @@ object dynamic {
     sir.modify(integrator)(t)
 
   def randomDestination[M[_]: Monad: RNG](airport: Airport, network: Network): M[Airport] =
-    implicitly[RNG[M]].rng.map { rng =>
+    for {
+      rng <- implicitly[RNG[M]].rng
+    } yield {
       val neighbours = Network.neighbours(network, airport.index)
       val selected = rng.nextInt(neighbours.size)
       network.airports(neighbours(selected))
