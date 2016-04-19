@@ -62,20 +62,20 @@ object dynamic {
         airport =>
           def buildPlane(s: Int, i: Int, r: Int) =
             for {
+              step <- implicitly[Step[M]].get
               dest <- destination(airport, state.network)
             } yield Plane(
               capacity = planeCapacity,
               sir = buildSIR(s, i, r),
               origin = airport.index,
               destination = dest.index,
-              departureStep = s
+              departureStep = step
             )
 
           fillPlanes[M](airport, planeCapacity, buildPlane)
       }
 
     for {
-      step <- implicitly[Step[M]].get
       v <- departures(modelState)
     } yield
       ((MicMacState.network composeLens Network.airports).set(v.map(_._1)) andThen
