@@ -86,7 +86,7 @@ object dynamic {
   }
 
   def planeArrivals[M[_]: Monad: Step](planeSpeed: Double) = Kleisli[M, MicMacState, MicMacState] { modelState =>
-    val airports = (MicMacState.network composeLens Network.airports).get(modelState)
+    val airports = (MicMacState.network composeLens Network.airports) get modelState
 
     def isArrived(plane: Plane, step: Long) = {
       val from = airports(plane.origin)
@@ -96,26 +96,28 @@ object dynamic {
       flightDuration >= (step - plane.departureStep)
     }
 
-    def dispatch(airports: Vector[Airport], planes: List[Plane]): Vector[Airport] =
-      planes match {
+    def dispatch(airports: Vector[Airport], arrived: List[Plane]): Vector[Airport] =
+      arrived match {
         case Nil => airports
-        case plane :: t =>
-          def flightSIR = (Plane.sir composeLens SIR.vector).get(plane)
+        case plane :: tail =>
+          def flightSIR = (Plane.sir composeLens SIR.vector) get plane
           def newAirports =
             (index[Vector[Airport], Int, Airport](plane.destination)
               composeLens Airport.sir
               composeLens SIR.vector).modify { airportSIR => (airportSIR zip flightSIR).map { case(a, b) => a + b} } (airports)
 
-          dispatch(newAirports, t)
+          dispatch(newAirports, tail)
       }
 
-     implicitly[Step[M]].get.map { step =>
-       val (arrived, inFlight) = MicMacState.flyingPlanes.get(modelState).span(isArrived(_, step))
-       def airports = (MicMacState.network composeLens Network.airports).get(modelState)
-       def newAirports = dispatch(airports, arrived.toList)
-       (MicMacState.flyingPlanes.set(inFlight) andThen
-         (MicMacState.network composeLens Network.airports).set(newAirports)) (modelState)
-    }
+      for {
+        step <- implicitly[Step[M]].get
+      } yield {
+        val (arrived, inFlight) = MicMacState.flyingPlanes.get(modelState).span(isArrived(_, step))
+        def airports = (MicMacState.network composeLens Network.airports) get modelState
+        def newAirports = dispatch(airports, arrived.toList)
+        (MicMacState.flyingPlanes.set(inFlight) andThen
+          (MicMacState.network composeLens Network.airports).set(newAirports)) (modelState)
+      }
   }
 
   def fillPlanes[M[_]: Monad: RNG](
