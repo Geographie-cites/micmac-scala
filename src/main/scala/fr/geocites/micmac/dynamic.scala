@@ -77,9 +77,12 @@ object dynamic {
 
     for {
       v <- departures(modelState)
-    } yield
-      ((MicMacState.network composeLens Network.airports).set(v.map(_._1)) andThen
-        MicMacState.flyingPlanes.modify(_ ++ v.flatMap(_._2))) (modelState)
+    } yield {
+      val (newAirports, departedPlanes) = v.unzip
+
+      ((MicMacState.network composeLens Network.airports).set(newAirports) andThen
+        MicMacState.flyingPlanes.modify(_ ++ departedPlanes.flatten)) (modelState)
+    }
   }
 
   def planeArrivals[M[_]: Monad: Step](planeSpeed: Double) = Kleisli[M, MicMacState, MicMacState] { modelState =>
