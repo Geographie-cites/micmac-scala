@@ -20,6 +20,8 @@ package fr.geocites.micmac
 
 import scalaz._
 import Scalaz._
+import monocle.function.all._
+import monocle.std.all._
 
 object network {
 
@@ -27,7 +29,6 @@ object network {
     territory: Territory,
     buildAirport: (Int, Double, Double, Int) => Airport,
     number: Int)(implicit rng: RNG[M]) = {
-
 
     def randomAirport(i: Int, infectedIndex: Int): M[Airport] =
       for {
@@ -51,15 +52,29 @@ object network {
     } yield {
       def randomEdge = (rng.nextInt(airports.size), rng.nextInt(airports.size))
 
-      def randomNetwork(size: Int, links: Set[(Int, Int)]): Network =
-        if(size == 0) Network(airports, links.toVector)
+      def randomNetwork(size: Int, links: Set[(Int, Int)], numberOfLinks: Vector[Int]): Network =
+        if(size <= 0) Network(airports, links.toVector)
         else {
           val candidate = randomEdge
-          if(!links.contains(candidate)) randomNetwork(size - 1, links + candidate)
-          else randomNetwork(size, links)
+          def valid = numberOfLinks(candidate._1) > 1 && numberOfLinks(candidate._2) > 1
+
+          if(valid) {
+            def newNOL =
+              vectorIndex[Int].index(candidate._1).modify(_ - 1) andThen
+                vectorIndex[Int].index(candidate._2).modify(_ - 1) apply numberOfLinks
+
+            randomNetwork(size - 1, links - candidate, newNOL)
+          } else randomNetwork(size, links, numberOfLinks)
         }
 
-      randomNetwork(edges, Set.empty)
+      def fullSet =
+        for {
+          i <- 0 until airports.size
+          j <- 0 until airports.size
+          if i != j
+        } yield (i, j)
+
+      randomNetwork(edges, fullSet.toSet, Vector.fill(airports.size)(airports.size - 1))
     }
   }
 
