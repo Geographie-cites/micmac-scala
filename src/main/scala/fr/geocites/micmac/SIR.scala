@@ -24,7 +24,7 @@ object sir {
 
   type Integrator = SIR => SIR
 
-  def integrator(t: Double, h: Double): Integrator = (sir: SIR) => {
+  def integrator(h: Double): Integrator = (sir: SIR) => {
     val equations = new FirstOrderDifferentialEquations {
       override def getDimension: Int = 3
       override def computeDerivatives(t: Double, y: Array[Double], yDot: Array[Double]): Unit = {
@@ -37,7 +37,7 @@ object sir {
     val integrator = new ClassicalRungeKuttaIntegrator(h)
 
     val y = Array.ofDim[Double](3)
-    integrator.integrate(equations, 0, Array(sir.s, sir.i, sir.r), t, y)
+    integrator.integrate(equations, 0, Array(sir.s, sir.i, sir.r), h, y)
 
     sir.copy(s = y(0), i = y(1), r = y(2))
   }

@@ -35,16 +35,16 @@ object Test extends App {
 
 
   val territory = Territory(1000, 1000)
-  val nodes = 100
+  val nodes = 50
   val edges = 100
-  val populationByNode = 10000
+  val populationByNode = 4000
   val alpha = 0.2
   val beta = 0.5
   val planeCapacity = 80
   val planeSpeed = 0.5
 
-  val airportIntegrator = integrator(beta / populationByNode, 0.01)
-  val planeIntegrator = integrator(beta / populationByNode, 0.01)
+  val airportIntegrator = integrator(0.01)
+  val planeIntegrator = integrator(0.01)
 
   def sir(s: Double, i: Double, r: Double) =
     SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
@@ -55,7 +55,7 @@ object Test extends App {
       integrator = airportIntegrator,
       epidemyDuration = 60 days,
       epsilon = 0.001,
-      mobilityRate = 0.012,
+      mobilityRate = 0.017,
       nbAirports = nodes
     )
 
