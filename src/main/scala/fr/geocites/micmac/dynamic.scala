@@ -38,15 +38,16 @@ object dynamic {
 
     def steps(sir: SIR, step: Int = 0): Int = {
       val newSir = integrator(sir)
-      if (newSir.i < epsilon) step
+      if (newSir.i <= epsilon) step
       else steps(newSir, step + 1)
     }
 
     val nbSteps = steps(sir)
-    def dt = epidemyDuration.toHours.toDouble
-    def totalPopulationToFly = sir.total * mobilityRate * dt
+    //def dt = epidemyDuration.toHours.toDouble / nbSteps
 
-    (totalPopulationToFly / nbSteps / nbAirports)
+    def totalPopulationToFly = (sir.total * nbAirports) * mobilityRate * epidemyDuration.toDays.toDouble
+
+    (totalPopulationToFly / nbSteps) / nbAirports
   }
 
   def updateSIRs[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =

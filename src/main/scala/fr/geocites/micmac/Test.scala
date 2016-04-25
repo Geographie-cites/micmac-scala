@@ -43,8 +43,8 @@ object Test extends App {
   val planeCapacity = 80
   val planeSpeed = 0.5
 
-  val airportIntegrator = integrator(0.01)
-  val planeIntegrator = integrator(0.01)
+  val airportIntegrator: Integrator = integrator.integrateSIR(0.01)
+  val planeIntegrator: Integrator = integrator.integrateSIR(0.01)
 
   def sir(s: Double, i: Double, r: Double) =
     SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
