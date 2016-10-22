@@ -74,7 +74,8 @@ object Test extends App {
 
   def initState =
     for {
-      network <- randomNetwork[Context](edges, airports)
+      a <- airports
+      network <- randomNetwork[Context](edges, a)
       _ <- modelState.set(MicMacState(network, Vector.empty))
     } yield ()
 

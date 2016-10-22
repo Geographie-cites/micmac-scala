@@ -39,16 +39,7 @@ package object micmac {
     def apply(f: T => T) = modify(f)
   }
 
-  //type Field[M[_], A] = (A => A) => M[A]
-
-//  implicit class getSetModDecorator[M[_], A](f: Field[M, A]) {
-//    def get = f(identity)
-//    def set(a: A) = f(_ => a)
-//    def modify(m: A => A) = f(m)
-//  }
-
   trait RNG[M[_]] {
-    def random: M[util.Random]
     def nextDouble: M[Double]
     def nextInt(n: Int): M[Int]
   }

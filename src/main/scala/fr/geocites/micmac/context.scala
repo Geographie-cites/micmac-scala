@@ -73,7 +73,7 @@ object context {
     sealed trait DSL[A]
     final case object NextDouble extends DSL[Double]
     final case class NextInt(n: Int) extends DSL[Int]
-    final case object Random extends DSL[Random]
+    //final case object Random extends DSL[Random]
 
     type PRG = DSL :|: NilDSL
     val PRG = DSL.Make[PRG]
@@ -84,8 +84,6 @@ object context {
       def apply[A](a: DSL[A]) = a match {
         case NextDouble => random.nextDouble
         case NextInt(n) => random.nextInt(n)
-        //FIXME mutable effect escape the interpreter
-        case Random => random
       }
     }
   }
@@ -116,7 +114,6 @@ object context {
     Step.interpreter :&: Observable.interpreter :&: RNG.interpreter(seed) :&: ModelState.interpreter
 
   implicit def rng = new RNG[Context] {
-    override def random = RNG.Random.freek[PRG]
     override def nextDouble = RNG.NextDouble.freek[PRG]
     override def nextInt(n: Int) = RNG.NextInt(n).freek[PRG]
   }

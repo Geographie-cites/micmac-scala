@@ -46,37 +46,43 @@ object network {
     } yield airports
   }
 
-  def randomNetwork[M[_]: Monad](edges: Int, airportsM: M[Vector[Airport]])(implicit rng: RNG[M], modelState: ModelState[M]) =
-    for {
-      airports <- airportsM
-      rng <- rng.random
-    } yield {
-      def randomEdge = (rng.nextInt(airports.size), rng.nextInt(airports.size))
+  def randomNetwork[M[_]: Monad](edges: Int, airports: Vector[Airport])(implicit rng: RNG[M], modelState: ModelState[M]) = {
+    def randomEdge =
+      for {
+        i <- rng.nextInt(airports.size)
+        j <- rng.nextInt(airports.size)
+      } yield (i, j)
 
-      def randomNetwork(size: Int, links: Set[(Int, Int)], numberOfLinks: Vector[Int]): Network =
-        if(size <= 0) Network(airports, links.toVector)
-        else {
-          val candidate = randomEdge
+    def fullSet =
+      for {
+        i <- 0 until airports.size
+        j <- 0 until airports.size
+        if i != j
+      } yield (i, j)
+
+    case class RandomNetworkParam(size: Int, links: Set[(Int, Int)], numberOfLinks: Vector[Int])
+
+    Monad[M].tailRecM(RandomNetworkParam(edges, fullSet.toSet, Vector.fill(airports.size)(airports.size - 1))) { param =>
+     if (param.size <= 0) (Right(Network(airports, param.links.toVector)): Either[RandomNetworkParam, Network]).pure[M]
+      else
+        randomEdge.map { candidate =>
+          import param._
           def valid = numberOfLinks(candidate._1) > 1 && numberOfLinks(candidate._2) > 1
 
-          if(valid) {
-            def newNOL =
-              vectorIndex[Int].index(candidate._1).modify(_ - 1) andThen
-                vectorIndex[Int].index(candidate._2).modify(_ - 1) apply numberOfLinks
+          val newParams =
+            if (!valid) RandomNetworkParam(size, links, numberOfLinks)
+            else {
+              def newNOL =
+                vectorIndex[Int].index(candidate._1).modify(_ - 1) andThen vectorIndex[Int].index(candidate._2).modify(_ - 1) apply numberOfLinks
 
-            randomNetwork(size - 1, links - candidate, newNOL)
-          } else randomNetwork(size, links, numberOfLinks)
+              RandomNetworkParam(size - 1, links - candidate, newNOL)
+            }
+
+          (Left(newParams): Either[RandomNetworkParam, Network])
         }
-
-      def fullSet =
-        for {
-          i <- 0 until airports.size
-          j <- 0 until airports.size
-          if i != j
-        } yield (i, j)
-
-      randomNetwork(edges, fullSet.toSet, Vector.fill(airports.size)(airports.size - 1))
     }
 
+  }
 
 }
+
