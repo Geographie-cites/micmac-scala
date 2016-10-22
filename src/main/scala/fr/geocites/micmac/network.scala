@@ -18,9 +18,10 @@
 
 package fr.geocites.micmac
 
-import scalaz._
-import Scalaz._
-import monocle.function.all._
+
+import cats._
+import cats.implicits._
+import cats.data._
 import monocle.std.all._
 
 object network {
@@ -30,25 +31,25 @@ object network {
     buildAirport: (Int, Double, Double, Int) => Airport,
     number: Int)(implicit rng: RNG[M]) = {
 
-    def randomAirport(i: Int, infectedIndex: Int): M[Airport] =
+    def randomAirport(i: Int, infectedIndex: Int) =
       for {
-        rng <- implicitly[RNG[M]].rng
+        x <- rng.nextDouble.map(_ * territory.length)
+        y <- rng.nextDouble.map(_ * territory.width)
       } yield {
-        val x = (rng.nextDouble * territory.length)
-        val y = (rng.nextDouble * territory.width)
         def infected = if(infectedIndex == i) 1 else 0
         buildAirport(i, x, y, infected)
       }
 
     for {
-      infectedIndex <- rng.rng.map(_.nextInt(number))
+      infectedIndex <- rng.nextInt(number)
       airports <- (0 until number).toVector.traverseU(randomAirport(_, infectedIndex))
     } yield airports
   }
 
-  def randomNetwork[M[_]: Monad](edges: Int)(implicit mRNG: RNG[M]) = Kleisli[M, Vector[Airport], Network] {  airports: Vector[Airport] =>
+  def randomNetwork[M[_]: Monad](edges: Int, airportsM: M[Vector[Airport]])(implicit rng: RNG[M], modelState: ModelState[M]) =
     for {
-      rng <- implicitly[RNG[M]].rng
+      airports <- airportsM
+      rng <- rng.random
     } yield {
       def randomEdge = (rng.nextInt(airports.size), rng.nextInt(airports.size))
 
@@ -76,7 +77,6 @@ object network {
 
       randomNetwork(edges, fullSet.toSet, Vector.fill(airports.size)(airports.size - 1))
     }
-  }
 
 
 }

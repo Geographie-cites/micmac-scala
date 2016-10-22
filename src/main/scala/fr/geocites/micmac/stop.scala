@@ -17,17 +17,14 @@
   */
 package fr.geocites.micmac
 
-import scalaz._
-import Scalaz._
-
+import cats._
+import cats.implicits._
 import observable._
 
 object stop {
 
-  type StopCondition[M[_]] = Kleisli[M, MicMacState, Boolean]
-
-  def endOfEpidemy[M[_]: Monad](implicit observable: Observable[M], step: Step[M]): StopCondition[M] = Kleisli { state =>
-    def finished(maxIStep: Option[MaxIStep], step: Long) =
+  def endOfEpidemy[M[_]: Monad](implicit observable: Observable[M], step: Step[M], stateM: ModelState[M]) = {
+    def finished(maxIStep: Option[MaxIStep], step: Long, state: MicMacState) =
       maxIStep match {
         case Some(maxIStep) =>
           if(step >= maxIStep.step + 1) total(_.i)(state) < 1.0
@@ -36,16 +33,16 @@ object stop {
       }
 
     for {
-      s <- step.step.get
-      maxIStep <- observable.maxIStep.get
-    } yield finished(maxIStep, s)
+      s <- step.get
+      state <- stateM.get
+      maxIStep <- observable.getMaxIStep
+    } yield finished(maxIStep, s, state)
   }
 
-  def stopAfter[M[_]: Monad](s: Long)(implicit step: Step[M]): StopCondition[M] = Kleisli { state =>
-    step.step.get.map { _ >= s }
-  }
+  def stopAfter[M[_]: Monad](s: Long)(implicit step: Step[M]) = step.get.map { _ >= s }
 
-  def or[M[_]: Monad](s1:  StopCondition[M], s2: StopCondition[M]) =
+
+  def or[M[_]: Monad](s1:  M[Boolean], s2: M[Boolean]) =
     for {
       c1 <- s1
       c2 <- s2

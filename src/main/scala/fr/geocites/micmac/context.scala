@@ -18,68 +18,124 @@
 package fr.geocites.micmac
 
 
-import monocle.macros.Lenses
+import freek._
+import cats.free._
+import cats._
+import cats.implicits._
 
 import scala.util.Random
-import scalaz._
-import Scalaz._
-import monocle.state.all._
+
 
 object context {
 
-  def initialState(airports: Int, rng: Random) = {
-    SimulationState(
-      step = 0,
-      rng = rng,
-      maxIStep = None,
-      infectionStep = Vector.fill(airports)(None)
-    )
-  }
+  object Step {
+    sealed trait DSL[A]
+    final case object Get extends DSL[Int]
+    final case object Increment extends DSL[Unit]
 
-  @Lenses case class SimulationState(
-    step: Long,
-    rng: Random,
-    maxIStep: Option[MaxIStep] = None,
-    infectionStep: Vector[Option[Long]]
-  )
+    type PRG = DSL :|: NilDSL
+    val PRG = DSL.Make[PRG]
 
-  type Context[X] = State[SimulationState, X]
+    def interpreter = new (DSL ~> Id) {
+      var step = 0
 
-  /*implicit def modelState = new ModelState[Context, MicMacState] {
-    override def get: Context[MicMacState] = State.get[SimulationState].map(_.micMacState)
-    override def set(state: MicMacState): Context[Unit] = State.modify[SimulationState](SimulationState.micMacState.set(state))
-  }*/
-
-  implicit def sObservable = new Observable[Context] {
-    override def maxIStep = SimulationState.maxIStep.mod
-    override def infectionStep = SimulationState.infectionStep.mod
-  }
-
-  implicit def sRNG = new RNG[Context] {
-    override def rng: Context[Random] = State.get[SimulationState].map(_.rng)
-  }
-
-  implicit def sStep[T] = new Step[Context] {
-    override def step = SimulationState.step.mod
-  }
-
-  def run[T](step: Kleisli[Context, T, T], stop: Kleisli[Context, T, Boolean]): Kleisli[Context, T, T] = {
-    def runStep(modelState: T, state: SimulationState): (SimulationState, T) = {
-      val (s1, stop1) = stop.run(modelState)(state)
-
-      if(stop1) (s1, modelState)
-      else {
-        val (s2, result2) = step.run(modelState).run(s1)
-        runStep(result2, s2)
+      def apply[A](a: DSL[A]) = a match {
+        case Get => step
+        case Increment => step += 1
       }
     }
+  }
 
-    Kleisli[Context, T, T] { t =>
-      State { s: SimulationState =>
-        val (s1, res1) = step.run(t).run(s)
-        runStep(res1, s1)
+  object Observable {
+    sealed trait DSL[A]
+    final case object GetMaxIStep extends DSL[Option[MaxIStep]]
+    final case class SetMaxIStep(step: Option[MaxIStep]) extends DSL[Unit]
+    final case object GetInfectionStep extends DSL[Vector[Option[Long]]]
+    final case class SetInfectionStep(step: Vector[Option[Long]]) extends DSL[Unit]
+
+    type PRG = DSL :|: NilDSL
+    val PRG = DSL.Make[PRG]
+
+    def interpreter = new (DSL ~> Id) {
+      var maxIStep: Option[MaxIStep] = None
+      var infectionStep: Vector[Option[Long]] = Vector.empty
+
+      def apply[A](a: DSL[A]) = a match {
+        case GetMaxIStep => maxIStep
+        case SetMaxIStep(s) => maxIStep = s
+        case GetInfectionStep => infectionStep
+        case SetInfectionStep(v) => infectionStep = v
       }
     }
+  }
+
+  object RNG {
+    sealed trait DSL[A]
+    final case object NextDouble extends DSL[Double]
+    final case class NextInt(n: Int) extends DSL[Int]
+    final case object Random extends DSL[Random]
+
+    type PRG = DSL :|: NilDSL
+    val PRG = DSL.Make[PRG]
+
+    def interpreter(seed: Long) = new (DSL ~> Id) {
+      var random = new util.Random(seed)
+
+      def apply[A](a: DSL[A]) = a match {
+        case NextDouble => random.nextDouble
+        case NextInt(n) => random.nextInt(n)
+        //FIXME mutable effect escape the interpreter
+        case Random => random
+      }
+    }
+  }
+
+  object ModelState {
+    sealed trait DSL[A]
+    final case object Get extends DSL[MicMacState]
+    final case class Set(s: MicMacState) extends DSL[Unit]
+
+    type PRG = DSL :|: NilDSL
+    val PRG = DSL.Make[PRG]
+
+    def interpreter = new (DSL ~> Id) {
+      var state: Option[MicMacState] = None
+
+      //FIXME use onion
+      def apply[A](a: DSL[A]) = a match {
+        case Get => state.getOrElse(throw new RuntimeException("state as not been set"))
+        case Set(v) => state = Some(v)
+      }
+    }
+  }
+
+  type PRG = Step.PRG :||: Observable.PRG :||: RNG.PRG :||: ModelState.PRG
+  val PRG = DSL.Make[PRG]
+  type Context[T] = Free[PRG.Cop, T]
+  def interpreter(seed: Long) =
+    Step.interpreter :&: Observable.interpreter :&: RNG.interpreter(seed) :&: ModelState.interpreter
+
+  implicit def rng = new RNG[Context] {
+    override def random = RNG.Random.freek[PRG]
+    override def nextDouble = RNG.NextDouble.freek[PRG]
+    override def nextInt(n: Int) = RNG.NextInt(n).freek[PRG]
+  }
+
+  implicit def step = new Step[Context] {
+    override def get = Step.Get.freek[PRG]
+    override def increment = Step.Increment.freek[PRG]
+  }
+
+  implicit def modelState = new ModelState[Context] {
+    def get = ModelState.Get.freek[PRG]
+    def set(s: MicMacState) = ModelState.Set(s).freek[PRG]
+  }
+
+  implicit def observable = new Observable[Context] {
+    def getMaxIStep = Observable.GetMaxIStep.freek[PRG]
+    def setMaxIStep(s: Option[MaxIStep]) = Observable.SetMaxIStep(s).freek[PRG]
+    def getInfectionStep = Observable.GetInfectionStep.freek[PRG]
+    def setInfectionStep(v: Vector[Option[Long]]) = Observable.SetInfectionStep(v).freek[PRG]
   }
 
 }

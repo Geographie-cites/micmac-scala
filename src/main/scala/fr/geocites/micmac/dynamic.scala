@@ -15,15 +15,22 @@
   * along with this program.  If not, see <http://www.gnu.org/licenses/>.
   *
   */
+
 package fr.geocites.micmac
 
-import fr.geocites.micmac.sir.Integrator
-import scala.concurrent.duration.Duration
-import scalaz._
-import Scalaz._
+
+//import context._
+//
+import scala.concurrent.duration._
+//
 import monocle.std.vector._
 import monocle.function.all._
-import monocle.function.At.at
+
+
+import cats.free._
+import cats.implicits._
+import cats._
+import freek._
 import sir._
 
 object dynamic {
@@ -53,26 +60,28 @@ object dynamic {
   def updateSIRs[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =
     sir.modify(integrator)(t)
 
-  def randomDestination[M[_]: Monad: RNG](airport: Airport, network: Network): M[Airport] =
+  def randomDestination[M[_]: Monad](airport: Airport, network: Network)(implicit rng: RNG[M]) = {
+    val neighbours = Network.neighbours(network, airport.index)
     for {
-      rng <- implicitly[RNG[M]].rng
+      selected <- rng.nextInt(neighbours.size)
     } yield {
       val neighbours = Network.neighbours(network, airport.index)
-      val selected = rng.nextInt(neighbours.size)
       network.airports(neighbours(selected))
     }
+  }
 
-  def planeDepartures[M[_]: Monad: RNG: Step](
+  def planeDepartures[M[_]: Monad](
     planeCapacity: Int,
     populationToFly: Double,
     destination: (Airport, Network) => M[Airport],
-    buildSIR: (Double, Double, Double) => SIR) = Kleisli[M, MicMacState, MicMacState] { modelState =>
-    def departures(state: MicMacState): M[Vector[(Airport, List[Plane])]] =
+    buildSIR: (Double, Double, Double) => SIR)(implicit step: Step[M], state: ModelState[M], rng: RNG[M]) = {
+
+    def departures(state: MicMacState) =
       state.network.airports.traverseU {
         airport =>
           def buildPlane(s: Int, i: Int, r: Int) =
             for {
-              step <- implicitly[Step[M]].step.get
+              step <- step.get
               dest <- destination(airport, state.network)
             } yield Plane(
               capacity = planeCapacity,
@@ -85,23 +94,29 @@ object dynamic {
           fillPlanes[M](airport, planeCapacity, buildPlane)
       }
 
+    def departed(modelState: MicMacState) =
+      for {
+        v <- departures(modelState)
+      } yield {
+        val (newAirports, departedPlanes) = v.unzip
+
+        def setNewAirports = (MicMacState.network composeLens Network.airports) set newAirports
+        def updatePopulationToFly = (MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.populationToFly) modify (_ + populationToFly)
+        def addDepartingPlanes = MicMacState.flyingPlanes modify(_ ++ departedPlanes.flatten)
+
+        (setNewAirports andThen updatePopulationToFly andThen addDepartingPlanes) (modelState)
+      }
+
     for {
-      v <- departures(modelState)
-    } yield {
-      val (newAirports, departedPlanes) = v.unzip
-
-      def setNewAirports = (MicMacState.network composeLens Network.airports) set newAirports
-      def updatePopulationToFly = (MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.populationToFly) modify (_ + populationToFly)
-      def addDepartingPlanes = MicMacState.flyingPlanes modify(_ ++ departedPlanes.flatten)
-
-      (setNewAirports andThen updatePopulationToFly andThen addDepartingPlanes) (modelState)
-    }
+      s <- state.get
+      ns <- departed(s)
+      _ <- state.set(ns)
+    } yield ()
   }
 
-  def planeArrivals[M[_]: Monad: Step](planeSpeed: Double) = Kleisli[M, MicMacState, MicMacState] { modelState =>
-    val airports = (MicMacState.network composeLens Network.airports) get modelState
+  def planeArrivals[M[_]: Monad](planeSpeed: Double)(implicit step: Step[M], state: ModelState[M]) = {
 
-    def isArrived(plane: Plane, step: Long) = {
+    def isArrived(plane: Plane, step: Long, airports: Vector[Airport]) = {
       val from = airports(plane.origin)
       val to =  airports(plane.destination)
       val distance = math.sqrt(math.pow(to.x - from.x, 2) + math.pow(to.y - from.y, 2))
@@ -122,49 +137,60 @@ object dynamic {
           dispatch(newAirports, tail)
       }
 
-      for {
-        step <- implicitly[Step[M]].step.get
-      } yield {
-        val (arrived, inFlight) = MicMacState.flyingPlanes.get(modelState).span(isArrived(_, step))
-        def airports = (MicMacState.network composeLens Network.airports) get modelState
-        def newAirports = dispatch(airports, arrived.toList)
-        (MicMacState.flyingPlanes.set(inFlight) andThen
-          (MicMacState.network composeLens Network.airports).set(newAirports)) (modelState)
-      }
-  }
-
-  def fillPlanes[M[_]: Monad: RNG](
-    airport: Airport,
-    planeCapacity: Int,
-    buildPlane: (Int, Int, Int) => M[Plane]): M[(Airport, List[Plane])] = {
-      def multinomial(v: Vector[Double], d: Double, i: Int = 0): Int =
-        if(d <= v(i)) i else multinomial(v, d - v(i), i + 1)
-
-      def fillPlane(airport: Airport, plane: Plane): M[(Airport, Plane)] =
-        if (Plane.passengers(plane) >= plane.capacity) (airport, plane).point[M]
-        else implicitly[RNG[M]].rng >>= { rng =>
-          val selected = multinomial(Airport.stock.get(airport), rng.nextDouble * Airport.population(airport))
-          def updateAirport = (Airport.stock composeOptional index(selected)).modify(_ - 1) andThen Airport.populationToFly.modify(_ - 1)
-          val newAirport = updateAirport(airport)
-          val newPlane = (Plane.stock composeOptional index(selected)).modify(_ + 1)(plane)
-          fillPlane(newAirport, newPlane)
-        }
-
-      def fillPlanes(airport: Airport, planes: List[Plane] = List.empty): M[(Airport, List[Plane])] =
-        // Plane should be full to leave
-        if (Airport.populationToFly.get(airport) < planeCapacity) (airport, planes).point[M]
-        else
-          for {
-            plane <- buildPlane(0, 0, 0)
-            filled <- fillPlane(airport, plane)
-            (newAirport, newPlane) = filled
-            res <- fillPlanes(newAirport, newPlane :: planes)
-          } yield res
-
-      fillPlanes(airport)
+    def afterArrival(modelState: MicMacState, step: Int) = {
+      val airports = (MicMacState.network composeLens Network.airports) get modelState
+      val (arrived, inFlight) = MicMacState.flyingPlanes.get(modelState).span(isArrived(_, step, airports))
+      def newAirports = dispatch(airports, arrived.toList)
+      (MicMacState.flyingPlanes.set(inFlight) andThen
+        (MicMacState.network composeLens Network.airports).set(newAirports)) (modelState)
     }
 
-  def updateStep[M[_]: Monad](implicit step: Step[M]) = step.step.modify(_ + 1)
+      for {
+        modelState <- state.get
+        step <- step.get
+        newState = afterArrival(modelState, step)
+        _ <- state.set(newState)
+      } yield ()
+  }
 
+  def fillPlanes[M[_]: Monad](
+      airport: Airport,
+      planeCapacity: Int,
+      buildPlane: (Int, Int, Int) => M[Plane])(implicit rng: RNG[M]) = {
+        def multinomial(v: Vector[Double], d: Double, i: Int = 0): Int =
+          if (d <= v(i)) i else multinomial(v, d - v(i), i + 1)
+
+        def fillPlane(airport: Airport, plane: Plane): M[(Airport, Plane)] = {
+          def boardPassenger(d: Double) = {
+            val selected = multinomial(Airport.stock.get(airport), d * Airport.population(airport))
+            def updateAirport = (Airport.stock composeOptional index(selected)).modify(_ - 1) andThen Airport.populationToFly.modify(_ - 1)
+            val newAirport = updateAirport(airport)
+            val newPlane = (Plane.stock composeOptional index(selected)).modify(_ + 1)(plane)
+            fillPlane(newAirport, newPlane)
+          }
+
+          if (Plane.passengers(plane) >= plane.capacity) (airport, plane).pure[M]
+          else
+            for {
+              d <- rng.nextDouble
+              p <- boardPassenger(d)
+            } yield p
+        }
+
+        def fillPlanes(airport: Airport, planes: List[Plane] = List.empty): M[(Airport, List[Plane])] =
+        // Plane should be full to leave
+          if (Airport.populationToFly.get(airport) < planeCapacity) (airport, planes).pure[M]
+          else
+            for {
+              plane <- buildPlane(0, 0, 0)
+              filled <- fillPlane(airport, plane)
+              (newAirport, newPlane) = filled
+              res <- fillPlanes(newAirport, newPlane :: planes)
+            } yield res
+
+        fillPlanes(airport)
+      }
+
+  def updateStep[M[_]: Monad](implicit step: Step[M]) = step.increment
 
 }

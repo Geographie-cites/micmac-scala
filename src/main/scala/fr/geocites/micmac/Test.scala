@@ -17,22 +17,21 @@
   */
 package fr.geocites.micmac
 
-import scala.util.Random
-import scalaz._
-import Scalaz._
 import network._
-import context._
 import monocle.std.all._
 import monocle.function._
 import dynamic._
 import concurrent.duration._
 import sir._
-import util._
+import cats._
+import cats.data._
+import cats.implicits._
+import cats.free._
+import context._
 import observable._
 import stop._
 
 object Test extends App {
-
 
   val territory = Territory(1000, 1000)
   val nodes = 50
@@ -59,7 +58,7 @@ object Test extends App {
       nbAirports = nodes
     )
 
-  val airports =
+  def airports =
     randomAirports[Context](
       territory,
       (index, x, y, infected) =>
@@ -73,44 +72,58 @@ object Test extends App {
       nodes
     )
 
-  val world = randomNetwork[Context](edges).map( w => MicMacState(w, Vector.empty))
+  def initState =
+    for {
+      network <- randomNetwork[Context](edges, airports)
+      _ <- modelState.set(MicMacState(network, Vector.empty))
+    } yield ()
 
-  def evolve[M[_]: Monad: RNG: Step: Observable] = {
-    def updateAirportSIR = Kleisli[M, MicMacState, MicMacState] { state =>
-      dynamic.updateSIRs[MicMacState](
-        airportIntegrator,
-        MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.sir
-      )(state).point[M]
-    }
+  def evolve: Context[Boolean] = {
+    def stateModifier = modifier(context.modelState.get, context.modelState.set)
 
-    def updatePlaneSIR = Kleisli[M, MicMacState, MicMacState] { state =>
-      dynamic.updateSIRs[MicMacState](
-        planeIntegrator,
-        MicMacState.flyingPlanes composeTraversal Each.each composeLens Plane.sir
-      )(state).point[M]
-    }
+    def updateAirportSIR =
+      stateModifier modify {
+        dynamic.updateSIRs[MicMacState](
+          airportIntegrator,
+          MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.sir
+        )
+      }
 
-    updateAirportSIR andThen updatePlaneSIR andThen
-     dynamic.planeDepartures[M](
-       planeCapacity = planeCapacity,
-       populationToFly = populationToFly,
-       destination = dynamic.randomDestination[M],
-       buildSIR = sir) andThen
-      dynamic.planeArrivals[M](planeSpeed) andThen
-      updateMaxStepI[M] andThen
-      updateStep[M] andThen
-      updateInfectedNodes[M]
+    def updatePlaneSIR =
+      stateModifier modify {
+        dynamic.updateSIRs[MicMacState](
+          planeIntegrator,
+          MicMacState.flyingPlanes composeTraversal Each.each composeLens Plane.sir
+        )
+      }
+
+    for {
+      _ <- updateAirportSIR
+      _ <- updatePlaneSIR
+      _ <- planeDepartures[Context](
+         planeCapacity = planeCapacity,
+         populationToFly = populationToFly,
+         destination = dynamic.randomDestination[Context],
+         buildSIR = sir)
+      _ <- planeArrivals[Context](planeSpeed)
+      _ <- updateMaxStepI[Context]
+      _ <- updateStep[Context]
+      _ <- updateInfectedNodes[Context]
+      end <- or[Context](endOfEpidemy[Context], stopAfter[Context](20000))
+    } yield end
   }
 
-  val initialise = airports >>= world
+  def loop = Monad[Context].tailRecM[Int, Int](0) { i =>
+    evolve.map { e => (if(e) Right(0) else Left(0)) }
+  }
 
-  val simulation =
-    initialise >>=
-      context.run(
-        evolve,
-        or(endOfEpidemy[Context], stopAfter[Context](20000))
-      ) andThen indicators[Context]
+  def simulation =
+    for {
+      _ <- initState
+      _ <- loop
+      ind <- observable.indicators[Context]
+    } yield ind
 
-  println(simulation.run(initialState(nodes, new Random(42))))
+  println(simulation.interpret(interpreter(42)))
 
 }

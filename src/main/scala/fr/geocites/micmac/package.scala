@@ -17,39 +17,59 @@
   */
 package fr.geocites
 
+import cats.Monad
+import cats.implicits._
 import monocle.function._
 import monocle.macros.Lenses
 import monocle.std.vector._
 
-import scala.util.Random
+//import scala.util.Random
 import simulacrum._
-import scalaz._
-import Scalaz._
-
 
 package object micmac {
 
-  type Field[M[_], A] = (A => A) => M[A]
+  def modifier[F[_]: Monad, T](get: F[T], set: T => F[Unit]) = new {
+    def modify(f: T => T) =
+      for {
+        v <- get
+        nv = f(v)
+        _ <- set(nv)
+      } yield nv
 
-  implicit class getSetModDecorator[M[_], A](f: Field[M, A]) {
-    def get = f(identity)
-    def set(a: A) = f(_ => a)
-    def modify(m: A => A) = f(m)
+    def apply(f: T => T) = modify(f)
   }
 
-  @typeclass trait RNG[M[_]] {
-    def rng: M[Random]
+  //type Field[M[_], A] = (A => A) => M[A]
+
+//  implicit class getSetModDecorator[M[_], A](f: Field[M, A]) {
+//    def get = f(identity)
+//    def set(a: A) = f(_ => a)
+//    def modify(m: A => A) = f(m)
+//  }
+
+  trait RNG[M[_]] {
+    def random: M[util.Random]
+    def nextDouble: M[Double]
+    def nextInt(n: Int): M[Int]
   }
 
-  @typeclass trait Step[M[_]] {
-    def step: Field[M, Long]
+  trait Step[M[_]] {
+    def get: M[Int]
+    def increment: M[Unit]
+  }
+
+  trait ModelState[M[_]] {
+    def get: M[MicMacState]
+    def set(s: MicMacState): M[Unit]
   }
 
   @Lenses case class MaxIStep(step: Long, value: Double)
 
-  @typeclass trait Observable[M[_]] {
-    def maxIStep: Field[M, Option[MaxIStep]]
-    def infectionStep: Field[M, Vector[Option[Long]]]
+  trait Observable[M[_]] {
+    def getMaxIStep: M[Option[MaxIStep]]
+    def setMaxIStep(v: Option[MaxIStep]): M[Unit]
+    def getInfectionStep: M[Vector[Option[Long]]]
+    def setInfectionStep(v: Vector[Option[Long]]): M[Unit]
   }
 
   case class Territory(length: Int, width: Int) {
