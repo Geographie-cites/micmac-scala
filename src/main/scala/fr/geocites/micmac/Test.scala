@@ -86,7 +86,9 @@ object Test extends App {
       stateModifier modify {
         dynamic.updateSIRs[MicMacState](
           airportIntegrator,
-          MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.sir
+          MicMacState.network composeTraversal
+            Network.airportsTraversal composeLens
+            Airport.sir
         )
       }
 
@@ -94,7 +96,9 @@ object Test extends App {
       stateModifier modify {
         dynamic.updateSIRs[MicMacState](
           planeIntegrator,
-          MicMacState.flyingPlanes composeTraversal Each.each composeLens Plane.sir
+          MicMacState.flyingPlanes composeTraversal
+            Each.each composeLens
+            Plane.sir
         )
       }
 
