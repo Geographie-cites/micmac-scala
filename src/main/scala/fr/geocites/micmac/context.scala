@@ -72,8 +72,8 @@ object context {
   object RNG {
     sealed trait DSL[A]
     final case object NextDouble extends DSL[Double]
-    final case class NextInt(n: Int) extends DSL[Int
-    
+    final case class NextInt(n: Int) extends DSL[Int]
+
     type PRG = DSL :|: NilDSL
     val PRG = DSL.Make[PRG]
 
