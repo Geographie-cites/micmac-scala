@@ -64,10 +64,7 @@ object dynamic {
     val neighbours = Network.neighbours(network, airport.index)
     for {
       selected <- rng.nextInt(neighbours.size)
-    } yield {
-      val neighbours = Network.neighbours(network, airport.index)
-      network.airports(neighbours(selected))
-    }
+    } yield network.airports(neighbours(selected))
   }
 
   def planeDepartures[M[_]: Monad](
