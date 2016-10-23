@@ -48,12 +48,6 @@ object network {
 
   def randomNetwork[M[_]: Monad](edges: Int, airports: Vector[Airport])(implicit rng: RNG[M], modelState: ModelState[M]) = {
 
-    def randomEdge =
-      for {
-        i <- rng.nextInt(airports.size)
-        j <- rng.nextInt(airports.size)
-      } yield (i, j)
-
     def fullSet =
       for {
         i <- 0 until airports.size
@@ -61,23 +55,29 @@ object network {
         if i != j
       } yield (i, j)
 
-    case class RandomNetworkParam(size: Int, links: Set[(Int, Int)], numberOfLinks: Vector[Int])
+    def fullLinkCount = Vector.fill(airports.size)(airports.size - 1)
 
-    Monad[M].tailRecM(RandomNetworkParam(edges, fullSet.toSet, Vector.fill(airports.size)(airports.size - 1))) { param =>
-     if (param.size <= 0) (Right(Network(airports, param.links.toVector)): Either[RandomNetworkParam, Network]).pure[M]
+
+    case class RandomNetworkParam(links: Set[(Int, Int)], numberOfIncomingLinks: Vector[Int], numberOfOutgoingLinks: Vector[Int])
+
+    Monad[M].tailRecM(RandomNetworkParam(fullSet.toSet, fullLinkCount, fullLinkCount)) { param =>
+      def randomEdge(links: Set[(Int, Int)]) =
+        for { i <- rng.nextInt(links.size) } yield links.toVector(i)
+
+      if (param.links.size == edges) (Right(Network(airports, param.links.toVector)): Either[RandomNetworkParam, Network]).pure[M]
       else
-        randomEdge.map { candidate =>
+        randomEdge(param.links).map { candidate =>
           import param._
-          def valid = numberOfLinks(candidate._1) > 1 && numberOfLinks(candidate._2) > 1
+
+          def isValid = numberOfOutgoingLinks(candidate._1) > 1 && numberOfIncomingLinks(candidate._2) > 1
 
           val newParams =
-            if (!valid) RandomNetworkParam(size, links, numberOfLinks)
-            else {
-              def newNOL =
-                vectorIndex[Int].index(candidate._1).modify(_ - 1) andThen vectorIndex[Int].index(candidate._2).modify(_ - 1) apply numberOfLinks
-
-              RandomNetworkParam(size - 1, links - candidate, newNOL)
-            }
+            if (!isValid) RandomNetworkParam(links, numberOfIncomingLinks, numberOfIncomingLinks)
+            else
+              RandomNetworkParam(
+                links - candidate,
+                vectorIndex[Int].index(candidate._1).modify(_ - 1) apply (numberOfOutgoingLinks),
+                vectorIndex[Int].index(candidate._2).modify(_ - 1) apply (numberOfIncomingLinks))
 
           (Left(newParams): Either[RandomNetworkParam, Network])
         }

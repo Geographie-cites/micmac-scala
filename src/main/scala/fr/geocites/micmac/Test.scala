@@ -35,7 +35,7 @@ object Test extends App {
 
   val territory = Territory(1000, 1000)
   val nodes = 50
-  val edges = 100
+  val edges = 500
   val populationByNode = 4000
   val alpha = 0.2
   val beta = 0.5

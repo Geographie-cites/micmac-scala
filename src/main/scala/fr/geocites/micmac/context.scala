@@ -131,7 +131,10 @@ object context {
 
   implicit def rng = new RNG[Context] {
     override def nextDouble = RNG.NextDouble.freek[PRG]
-    override def nextInt(n: Int) = RNG.NextInt(n).freek[PRG]
+    override def nextInt(n: Int) = {
+      assert(n > 0)
+      RNG.NextInt(n).freek[PRG]
+    }
   }
 
   implicit def step = new Step[Context] {
