@@ -47,6 +47,7 @@ object network {
   }
 
   def randomNetwork[M[_]: Monad](edges: Int, airports: Vector[Airport])(implicit rng: RNG[M], modelState: ModelState[M]) = {
+
     def randomEdge =
       for {
         i <- rng.nextInt(airports.size)
