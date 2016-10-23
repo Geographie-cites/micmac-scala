@@ -31,7 +31,7 @@ object context {
   object Step {
     sealed trait DSL[A]
     final case object Get extends DSL[Int]
-    final case object Increment extends DSL[Unit]
+    final case object Increment extends DSL[Int]
 
     type PRG = DSL :|: NilDSL
     val PRG = DSL.Make[PRG]
@@ -41,7 +41,9 @@ object context {
 
       def apply[A](a: DSL[A]) = a match {
         case Get => step
-        case Increment => step += 1
+        case Increment =>
+          step += 1
+          step
       }
     }
   }
@@ -106,11 +108,26 @@ object context {
     }
   }
 
-  type PRG = Step.PRG :||: Observable.PRG :||: RNG.PRG :||: ModelState.PRG
+  object Log {
+    sealed trait DSL[A]
+    final case class Print(s: String) extends DSL[Unit]
+
+    type PRG = DSL :|: NilDSL
+    val PRG = DSL.Make[PRG]
+
+    def interpreter = new (DSL ~> Id) {
+      def apply[A](a: DSL[A]) = a match {
+        case Print(s) => println(s)
+      }
+    }
+  }
+
+  type PRG = Step.PRG :||: Observable.PRG :||: RNG.PRG :||: ModelState.PRG :||: Log.PRG
   val PRG = DSL.Make[PRG]
   type Context[T] = Free[PRG.Cop, T]
+
   def interpreter(seed: Long) =
-    Step.interpreter :&: Observable.interpreter :&: RNG.interpreter(seed) :&: ModelState.interpreter
+    Step.interpreter :&: Observable.interpreter :&: RNG.interpreter(seed) :&: ModelState.interpreter :&: Log.interpreter
 
   implicit def rng = new RNG[Context] {
     override def nextDouble = RNG.NextDouble.freek[PRG]
@@ -132,6 +149,10 @@ object context {
     def setMaxIStep(s: Option[MaxIStep]) = Observable.SetMaxIStep(s).freek[PRG]
     def getInfectionStep = Observable.GetInfectionStep.freek[PRG]
     def setInfectionStep(v: Vector[Option[Long]]) = Observable.SetInfectionStep(v).freek[PRG]
+  }
+
+  implicit def log = new Log[Context] {
+    def print(s: String) = Log.Print(s).freek[PRG]
   }
 
 }

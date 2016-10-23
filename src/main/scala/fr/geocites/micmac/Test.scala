@@ -112,8 +112,9 @@ object Test extends App {
          buildSIR = sir)
       _ <- planeArrivals[Context](planeSpeed)
       _ <- updateMaxStepI[Context]
-      _ <- updateStep[Context]
+      s <- updateStep[Context]
       _ <- updateInfectedNodes[Context]
+      _ <- log.print(s"Step $s")
     } yield ()
   }
 
