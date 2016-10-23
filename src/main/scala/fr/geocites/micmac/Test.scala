@@ -79,7 +79,7 @@ object Test extends App {
       _ <- modelState.set(MicMacState(network, Vector.empty))
     } yield ()
 
-  def evolve: Context[Boolean] = {
+  def evolve = {
     def stateModifier = modifier(context.modelState.get, context.modelState.set)
 
     def updateAirportSIR =
@@ -110,13 +110,11 @@ object Test extends App {
       _ <- updateMaxStepI[Context]
       _ <- updateStep[Context]
       _ <- updateInfectedNodes[Context]
-      end <- or[Context](endOfEpidemy[Context], stopAfter[Context](20000))
-    } yield end
+    } yield ()
   }
 
-  def loop = Monad[Context].tailRecM[Int, Int](0) { i =>
-    evolve.map { e => (if(e) Right(0) else Left(0)) }
-  }
+  def end = or(endOfEpidemy[Context], stopAfter[Context](20000))
+  def loop = evolve.until(end)
 
   def simulation =
     for {
