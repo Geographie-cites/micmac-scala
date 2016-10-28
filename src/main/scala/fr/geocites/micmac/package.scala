@@ -39,10 +39,6 @@ package object micmac {
     def apply(f: T => T) = modify(f)
   }
 
-  trait RNG[M[_]] {
-    def nextDouble: M[Double]
-    def nextInt(n: Int): M[Int]
-  }
 
   trait Step[M[_]] {
     def get: M[Int]
@@ -61,10 +57,6 @@ package object micmac {
     def setMaxIStep(v: Option[MaxIStep]): M[Unit]
     def getInfectionStep: M[Vector[Option[Long]]]
     def setInfectionStep(v: Vector[Option[Long]]): M[Unit]
-  }
-
-  trait Log[M[_]] {
-    def print(s: String): M[Unit]
   }
 
   case class Territory(length: Int, width: Int) {

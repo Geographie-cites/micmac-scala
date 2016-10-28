@@ -19,8 +19,7 @@
 package fr.geocites.micmac
 
 
-//import context._
-//
+
 import scala.concurrent.duration._
 //
 import monocle.std.vector._
@@ -32,6 +31,8 @@ import cats.implicits._
 import cats._
 import freek._
 import sir._
+
+import freedsl.random._
 
 object dynamic {
 
@@ -60,7 +61,7 @@ object dynamic {
   def updateSIRs[T](integrator: Integrator, sir: monocle.Traversal[T, SIR])(t: T) =
     sir.modify(integrator)(t)
 
-  def randomDestination[M[_]: Monad](airport: Airport, network: Network)(implicit rng: RNG[M]) = {
+  def randomDestination[M[_]: Monad](airport: Airport, network: Network)(implicit rng: Random[M]) = {
     val neighbours = Network.neighbours(network, airport.index)
     for {
       selected <- rng.nextInt(neighbours.size)
@@ -71,7 +72,7 @@ object dynamic {
     planeCapacity: Int,
     populationToFly: Double,
     destination: (Airport, Network) => M[Airport],
-    buildSIR: (Double, Double, Double) => SIR)(implicit step: Step[M], state: ModelState[M], rng: RNG[M]) = {
+    buildSIR: (Double, Double, Double) => SIR)(implicit step: Step[M], state: ModelState[M], rng: Random[M]) = {
 
     def departures(state: MicMacState) =
       state.network.airports.traverseU {
@@ -153,7 +154,7 @@ object dynamic {
   def fillPlanes[M[_]: Monad](
       airport: Airport,
       planeCapacity: Int,
-      buildPlane: (Int, Int, Int) => M[Plane])(implicit rng: RNG[M]) = {
+      buildPlane: (Int, Int, Int) => M[Plane])(implicit rng: Random[M]) = {
         def multinomial(v: Vector[Double], d: Double, i: Int = 0): Int =
           if (d <= v(i)) i else multinomial(v, d - v(i), i + 1)
 

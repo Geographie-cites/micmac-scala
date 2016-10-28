@@ -23,13 +23,14 @@ import cats._
 import cats.implicits._
 import cats.data._
 import monocle.std.all._
+import freedsl.random._
 
 object network {
 
   def randomAirports[M[_]: Monad](
     territory: Territory,
     buildAirport: (Int, Double, Double, Int) => Airport,
-    number: Int)(implicit rng: RNG[M]) = {
+    number: Int)(implicit rng: Random[M]) = {
 
     def randomAirport(i: Int, infectedIndex: Int) =
       for {
@@ -46,7 +47,7 @@ object network {
     } yield airports
   }
 
-  def randomNetwork[M[_]: Monad](edges: Int, airports: Vector[Airport])(implicit rng: RNG[M], modelState: ModelState[M]) = {
+  def randomNetwork[M[_]: Monad](edges: Int, airports: Vector[Airport])(implicit rng: Random[M], modelState: ModelState[M]) = {
 
     def fullSet =
       for {

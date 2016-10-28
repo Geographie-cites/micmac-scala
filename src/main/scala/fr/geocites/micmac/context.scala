@@ -21,25 +21,21 @@ package fr.geocites.micmac
 import freek._
 import cats.free._
 import cats._
-import cats.implicits._
-
-import scala.util.Random
-
 
 object context {
 
   object Step {
-    sealed trait DSL[A]
-    final case object Get extends DSL[Int]
-    final case object Increment extends DSL[Int]
+    sealed trait Instruction[A]
+    final case object Get extends Instruction[Int]
+    final case object Increment extends Instruction[Int]
 
-    type PRG = DSL :|: NilDSL
-    val PRG = DSL.Make[PRG]
+    type DSL = Instruction :|: NilDSL
+    val DSL = freek.DSL.Make[DSL]
 
-    def interpreter = new (DSL ~> Id) {
+    def interpreter = new (Instruction ~> Id) {
       var step = 0
 
-      def apply[A](a: DSL[A]) = a match {
+      def apply[A](a: Instruction[A]) = a match {
         case Get => step
         case Increment =>
           step += 1
@@ -49,20 +45,20 @@ object context {
   }
 
   object Observable {
-    sealed trait DSL[A]
-    final case object GetMaxIStep extends DSL[Option[MaxIStep]]
-    final case class SetMaxIStep(step: Option[MaxIStep]) extends DSL[Unit]
-    final case object GetInfectionStep extends DSL[Vector[Option[Long]]]
-    final case class SetInfectionStep(step: Vector[Option[Long]]) extends DSL[Unit]
+    sealed trait Instuction[A]
+    final case object GetMaxIStep extends Instuction[Option[MaxIStep]]
+    final case class SetMaxIStep(step: Option[MaxIStep]) extends Instuction[Unit]
+    final case object GetInfectionStep extends Instuction[Vector[Option[Long]]]
+    final case class SetInfectionStep(step: Vector[Option[Long]]) extends Instuction[Unit]
 
-    type PRG = DSL :|: NilDSL
-    val PRG = DSL.Make[PRG]
+    type DSL = Instuction :|: NilDSL
+    val DSL = freek.DSL.Make[DSL]
 
-    def interpreter = new (DSL ~> Id) {
+    def interpreter = new (Instuction ~> Id) {
       var maxIStep: Option[MaxIStep] = None
       var infectionStep: Vector[Option[Long]] = Vector.empty
 
-      def apply[A](a: DSL[A]) = a match {
+      def apply[A](a: Instuction[A]) = a match {
         case GetMaxIStep => maxIStep
         case SetMaxIStep(s) => maxIStep = s
         case GetInfectionStep => infectionStep
@@ -71,91 +67,63 @@ object context {
     }
   }
 
-  object RNG {
-    sealed trait DSL[A]
-    final case object NextDouble extends DSL[Double]
-    final case class NextInt(n: Int) extends DSL[Int]
-
-    type PRG = DSL :|: NilDSL
-    val PRG = DSL.Make[PRG]
-
-    def interpreter(seed: Long) = new (DSL ~> Id) {
-      var random = new util.Random(seed)
-
-      def apply[A](a: DSL[A]) = a match {
-        case NextDouble => random.nextDouble
-        case NextInt(n) => random.nextInt(n)
-      }
-    }
-  }
-
   object ModelState {
-    sealed trait DSL[A]
-    final case object Get extends DSL[MicMacState]
-    final case class Set(s: MicMacState) extends DSL[Unit]
+    sealed trait Instruction[A]
+    final case object Get extends Instruction[MicMacState]
+    final case class Set(s: MicMacState) extends Instruction[Unit]
 
-    type PRG = DSL :|: NilDSL
-    val PRG = DSL.Make[PRG]
+    type DSL = Instruction :|: NilDSL
+    val DSL = freek.DSL.Make[DSL]
 
-    def interpreter = new (DSL ~> Id) {
+    def interpreter = new (Instruction ~> Id) {
       var state: Option[MicMacState] = None
 
       //FIXME use onion
-      def apply[A](a: DSL[A]) = a match {
+      def apply[A](a: Instruction[A]) = a match {
         case Get => state.getOrElse(throw new RuntimeException("state as not been set"))
         case Set(v) => state = Some(v)
       }
     }
   }
 
-  object Log {
-    sealed trait DSL[A]
-    final case class Print(s: String) extends DSL[Unit]
+  type DSL =
+    Step.DSL :||:
+    Observable.DSL :||:
+    ModelState.DSL :||:
+    freedsl.random.DSL :||:
+    freedsl.log.DSL
 
-    type PRG = DSL :|: NilDSL
-    val PRG = DSL.Make[PRG]
+  val DSL = freek.DSL.Make[DSL]
 
-    def interpreter = new (DSL ~> Id) {
-      def apply[A](a: DSL[A]) = a match {
-        case Print(s) => println(s)
-      }
-    }
-  }
-
-  type PRG = Step.PRG :||: Observable.PRG :||: RNG.PRG :||: ModelState.PRG :||: Log.PRG
-  val PRG = DSL.Make[PRG]
-  type Context[T] = Free[PRG.Cop, T]
+  type Context[T] = Free[DSL.Cop, T]
 
   def interpreter(seed: Long) =
-    Step.interpreter :&: Observable.interpreter :&: RNG.interpreter(seed) :&: ModelState.interpreter :&: Log.interpreter
+    Step.interpreter :&:
+      Observable.interpreter :&:
+      freedsl.random.interpreter(seed) :&:
+      ModelState.interpreter :&:
+      freedsl.log.interpreter
 
-  implicit def rng = new RNG[Context] {
-    override def nextDouble = RNG.NextDouble.freek[PRG]
-    override def nextInt(n: Int) = {
-      assert(n > 0)
-      RNG.NextInt(n).freek[PRG]
-    }
-  }
+  implicit def random = freedsl.random.impl[DSL]
+  implicit def log = freedsl.log.impl[DSL]
 
   implicit def step = new Step[Context] {
-    override def get = Step.Get.freek[PRG]
-    override def increment = Step.Increment.freek[PRG]
+    override def get = Step.Get.freek[DSL]
+    override def increment = Step.Increment.freek[DSL]
   }
 
   implicit def modelState = new ModelState[Context] {
-    def get = ModelState.Get.freek[PRG]
-    def set(s: MicMacState) = ModelState.Set(s).freek[PRG]
+    def get = ModelState.Get.freek[DSL]
+    def set(s: MicMacState) = ModelState.Set(s).freek[DSL]
   }
 
   implicit def observable = new Observable[Context] {
-    def getMaxIStep = Observable.GetMaxIStep.freek[PRG]
-    def setMaxIStep(s: Option[MaxIStep]) = Observable.SetMaxIStep(s).freek[PRG]
-    def getInfectionStep = Observable.GetInfectionStep.freek[PRG]
-    def setInfectionStep(v: Vector[Option[Long]]) = Observable.SetInfectionStep(v).freek[PRG]
+    def getMaxIStep = Observable.GetMaxIStep.freek[DSL]
+    def setMaxIStep(s: Option[MaxIStep]) = Observable.SetMaxIStep(s).freek[DSL]
+    def getInfectionStep = Observable.GetInfectionStep.freek[DSL]
+    def setInfectionStep(v: Vector[Option[Long]]) = Observable.SetInfectionStep(v).freek[DSL]
   }
 
-  implicit def log = new Log[Context] {
-    def print(s: String) = Log.Print(s).freek[PRG]
-  }
+
 
 }
