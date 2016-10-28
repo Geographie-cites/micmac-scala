@@ -80,7 +80,7 @@ object Test extends App {
     } yield ()
 
   def evolve = {
-    def stateModifier = modifier(context.modelState.get, context.modelState.set)
+    def stateModifier = freedsl.modifier(context.modelState.get, context.modelState.set)
 
     def updateAirportSIR =
       stateModifier modify {

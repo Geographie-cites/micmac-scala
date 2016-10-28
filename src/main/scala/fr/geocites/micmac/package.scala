@@ -28,18 +28,6 @@ import simulacrum._
 
 package object micmac {
 
-  def modifier[F[_]: Monad, T](get: F[T], set: T => F[Unit]) = new {
-    def modify(f: T => T) =
-      for {
-        v <- get
-        nv = f(v)
-        _ <- set(nv)
-      } yield nv
-
-    def apply(f: T => T) = modify(f)
-  }
-
-
   trait Step[M[_]] {
     def get: M[Int]
     def increment: M[Int]
