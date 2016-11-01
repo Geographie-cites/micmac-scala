@@ -17,11 +17,14 @@
   */
 package fr.geocites.micmac
 
-import freedsl._
+import freedsl.dsl._
+import freedsl.random._
+import freedsl.log._
+
 import cats._
 import cats.free._
 import freek._
-import freedsl.generate._
+
 import monocle.macros.Lenses
 
 object context {
@@ -31,8 +34,8 @@ object context {
       var step = 0
 
       def interpret[_] = {
-        case Get() => step
-        case Increment() =>
+        case get() => step
+        case increment() =>
           step += 1
           step
       }
@@ -50,8 +53,8 @@ object context {
 
       //FIXME use onion
       def interpret[_] = {
-        case Get() => state.getOrElse(throw new RuntimeException("state as not been set"))
-        case Set(v) => state = Some(v)
+        case get() => state.getOrElse(throw new RuntimeException("state as not been set"))
+        case set(v) => state = Some(v)
       }
     }
   }
@@ -67,10 +70,10 @@ object context {
       var infectionStep: Vector[Option[Long]] = Vector.empty
 
       def interpret[_] =  {
-        case GetMaxIStep() => maxIStep
-        case SetMaxIStep(s) => maxIStep = s
-        case GetInfectionStep() => infectionStep
-        case SetInfectionStep(v) => infectionStep = v
+        case getMaxIStep() => maxIStep
+        case setMaxIStep(s) => maxIStep = s
+        case getInfectionStep() => infectionStep
+        case setInfectionStep(v) => infectionStep = v
       }
     }
 

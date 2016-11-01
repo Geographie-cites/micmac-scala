@@ -21,10 +21,10 @@ package fr.geocites.micmac
 
 import cats._
 import cats.implicits._
-import cats.data._
 import monocle.std.all._
-import freedsl._
+
 import context._
+import freedsl.random._
 
 object network {
 

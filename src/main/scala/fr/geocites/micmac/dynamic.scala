@@ -31,8 +31,9 @@ import cats.implicits._
 import cats._
 import freek._
 import sir._
+
 import context._
-import freedsl._
+import freedsl.random._
 
 object dynamic {
 
