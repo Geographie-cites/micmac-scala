@@ -20,6 +20,7 @@ package fr.geocites.micmac
 import cats._
 import cats.implicits._
 import freedsl.modifier
+import context._
 
 object observable {
 

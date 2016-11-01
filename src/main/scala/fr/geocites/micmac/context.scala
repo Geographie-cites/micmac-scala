@@ -17,81 +17,81 @@
   */
 package fr.geocites.micmac
 
-
-import freek._
-import cats.free._
+import freedsl._
 import cats._
+import cats.free._
+import freek._
+import freedsl.generate._
+import monocle.macros.Lenses
 
 object context {
 
   object Step {
-    sealed trait Instruction[A]
-    final case object Get extends Instruction[Int]
-    final case object Increment extends Instruction[Int]
-
-    type DSL = Instruction :|: NilDSL
-    val DSL = freek.DSL.Make[DSL]
-
-    def interpreter = new (Instruction ~> Id) {
+    def interpreter = new Interpreter[Id] {
       var step = 0
 
-      def apply[A](a: Instruction[A]) = a match {
-        case Get => step
-        case Increment =>
+      def interpret[_] = {
+        case Get() => step
+        case Increment() =>
           step += 1
           step
       }
     }
   }
 
-  object Observable {
-    sealed trait Instuction[A]
-    final case object GetMaxIStep extends Instuction[Option[MaxIStep]]
-    final case class SetMaxIStep(step: Option[MaxIStep]) extends Instuction[Unit]
-    final case object GetInfectionStep extends Instuction[Vector[Option[Long]]]
-    final case class SetInfectionStep(step: Vector[Option[Long]]) extends Instuction[Unit]
+  @dsl trait Step[M[_]] {
+    def get: M[Int]
+    def increment: M[Int]
+  }
 
-    type DSL = Instuction :|: NilDSL
-    val DSL = freek.DSL.Make[DSL]
+  object ModelState {
+    def interpreter = new Interpreter[Id] {
+      var state: Option[MicMacState] = None
 
-    def interpreter = new (Instuction ~> Id) {
-      var maxIStep: Option[MaxIStep] = None
-      var infectionStep: Vector[Option[Long]] = Vector.empty
-
-      def apply[A](a: Instuction[A]) = a match {
-        case GetMaxIStep => maxIStep
-        case SetMaxIStep(s) => maxIStep = s
-        case GetInfectionStep => infectionStep
-        case SetInfectionStep(v) => infectionStep = v
+      //FIXME use onion
+      def interpret[_] = {
+        case Get() => state.getOrElse(throw new RuntimeException("state as not been set"))
+        case Set(v) => state = Some(v)
       }
     }
   }
 
-  object ModelState {
-    sealed trait Instruction[A]
-    final case object Get extends Instruction[MicMacState]
-    final case class Set(s: MicMacState) extends Instruction[Unit]
+  @dsl trait ModelState[M[_]] {
+    def get: M[MicMacState]
+    def set(s: MicMacState): M[Unit]
+  }
 
-    type DSL = Instruction :|: NilDSL
-    val DSL = freek.DSL.Make[DSL]
+  object Observable {
+    def interpreter = new Interpreter[Id] {
+      var maxIStep: Option[MaxIStep] = None
+      var infectionStep: Vector[Option[Long]] = Vector.empty
 
-    def interpreter = new (Instruction ~> Id) {
-      var state: Option[MicMacState] = None
-
-      //FIXME use onion
-      def apply[A](a: Instruction[A]) = a match {
-        case Get => state.getOrElse(throw new RuntimeException("state as not been set"))
-        case Set(v) => state = Some(v)
+      def interpret[_] =  {
+        case GetMaxIStep() => maxIStep
+        case SetMaxIStep(s) => maxIStep = s
+        case GetInfectionStep() => infectionStep
+        case SetInfectionStep(v) => infectionStep = v
       }
     }
+
+  }
+
+
+  @Lenses case class MaxIStep(step: Long, value: Double)
+
+  @dsl trait Observable[M[_]] {
+    def getMaxIStep: M[Option[MaxIStep]]
+    def setMaxIStep(v: Option[MaxIStep]): M[Unit]
+    def getInfectionStep: M[Vector[Option[Long]]]
+    def setInfectionStep(v: Vector[Option[Long]]): M[Unit]
   }
 
   type DSL =
     Step.DSL :||:
     Observable.DSL :||:
     ModelState.DSL :||:
-    freedsl.random.DSL :||:
-    freedsl.log.DSL
+    Random.DSL :||:
+    Log.DSL
 
   val DSL = freek.DSL.Make[DSL]
 
@@ -100,30 +100,14 @@ object context {
   def interpreter(seed: Long) =
     Step.interpreter :&:
       Observable.interpreter :&:
-      freedsl.random.interpreter(seed) :&:
+      Random.interpreter(seed) :&:
       ModelState.interpreter :&:
-      freedsl.log.interpreter
+      Log.interpreter
 
-  implicit def random = freedsl.random.impl[DSL]
-  implicit def log = freedsl.log.impl[DSL]
-
-  implicit def step = new Step[Context] {
-    override def get = Step.Get.freek[DSL]
-    override def increment = Step.Increment.freek[DSL]
-  }
-
-  implicit def modelState = new ModelState[Context] {
-    def get = ModelState.Get.freek[DSL]
-    def set(s: MicMacState) = ModelState.Set(s).freek[DSL]
-  }
-
-  implicit def observable = new Observable[Context] {
-    def getMaxIStep = Observable.GetMaxIStep.freek[DSL]
-    def setMaxIStep(s: Option[MaxIStep]) = Observable.SetMaxIStep(s).freek[DSL]
-    def getInfectionStep = Observable.GetInfectionStep.freek[DSL]
-    def setInfectionStep(v: Vector[Option[Long]]) = Observable.SetInfectionStep(v).freek[DSL]
-  }
-
-
+  implicit def random = Random.impl[DSL]
+  implicit def log = Log.impl[DSL]
+  implicit def step = Step.impl[DSL]
+  implicit def modelState = ModelState.impl[DSL]
+  implicit def observable = Observable.impl[DSL]
 
 }

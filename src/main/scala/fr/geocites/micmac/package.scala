@@ -22,30 +22,9 @@ import cats.implicits._
 import monocle.function._
 import monocle.macros.Lenses
 import monocle.std.vector._
-
-//import scala.util.Random
-import simulacrum._
+import cats._
 
 package object micmac {
-
-  trait Step[M[_]] {
-    def get: M[Int]
-    def increment: M[Int]
-  }
-
-  trait ModelState[M[_]] {
-    def get: M[MicMacState]
-    def set(s: MicMacState): M[Unit]
-  }
-
-  @Lenses case class MaxIStep(step: Long, value: Double)
-
-  trait Observable[M[_]] {
-    def getMaxIStep: M[Option[MaxIStep]]
-    def setMaxIStep(v: Option[MaxIStep]): M[Unit]
-    def getInfectionStep: M[Vector[Option[Long]]]
-    def setInfectionStep(v: Vector[Option[Long]]): M[Unit]
-  }
 
   case class Territory(length: Int, width: Int) {
     def area = length * width

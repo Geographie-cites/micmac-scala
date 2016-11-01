@@ -20,6 +20,7 @@ package fr.geocites.micmac
 import cats._
 import cats.implicits._
 import observable._
+import context._
 
 object stop {
 

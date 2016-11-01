@@ -23,7 +23,8 @@ import cats._
 import cats.implicits._
 import cats.data._
 import monocle.std.all._
-import freedsl.random._
+import freedsl._
+import context._
 
 object network {
 
