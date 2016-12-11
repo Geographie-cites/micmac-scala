@@ -20,7 +20,7 @@ package fr.geocites.micmac
 import cats._
 import cats.implicits._
 
-import freedsl.modifier
+import freedsl.tool.modifier
 import context._
 
 object observable {
@@ -30,7 +30,7 @@ object observable {
 
   def updateMaxStepI[M[_]: Monad](implicit obs: Observable[M], state: ModelState[M], step: Step[M]) = {
     def update(step: Long, totalIValue: Double): M[Option[MaxIStep]] =
-      modifier(obs.getMaxIStep, obs.setMaxIStep) modify {
+      modifier(obs.getMaxIStep, obs.setMaxIStep) apply {
         case Some(current) => if (totalIValue > current.value) Some(MaxIStep(step, totalIValue)) else Some(current)
         case None => Some(MaxIStep(step, totalIValue))
       }
@@ -70,7 +70,7 @@ object observable {
     for {
       step <- step.get
       state <- stateM.get
-      _ <- modifier(obs.getInfectionStep, obs.setInfectionStep) modify (update(_, step, state))
+      _ <- modifier(obs.getInfectionStep, obs.setInfectionStep) apply (update(_, step, state))
     } yield ()
   }
 

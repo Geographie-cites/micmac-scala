@@ -23,14 +23,13 @@ import monocle.function._
 import dynamic._
 import concurrent.duration._
 import sir._
-import cats._
-import cats.data._
-import cats.implicits._
-import cats.free._
 import context._
 import observable._
 import stop._
-import freedsl.log.Log
+
+import cats.implicits._
+import freedsl.log._
+import freedsl.tool._
 
 object Test extends App {
 
@@ -59,7 +58,7 @@ object Test extends App {
       nbAirports = nodes
     )
 
-  import context.context._
+  import merged._
 
   def airports =
     randomAirports[M](
@@ -84,26 +83,22 @@ object Test extends App {
   def evolve = {
     def stateModifier = {
       def modelState = implicitly[ModelState[M]]
-      freedsl.modifier(modelState.get, modelState.set)
+      modifier(modelState.get, modelState.set)
     }
 
     def updateAirportSIR =
-      stateModifier modify {
-        dynamic.updateSIRs[MicMacState](
+      stateModifier apply {
+        dynamic.updateSIRs(
           airportIntegrator,
-          MicMacState.network composeTraversal
-            Network.airportsTraversal composeLens
-            Airport.sir
+          MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.sir
         )
       }
 
     def updatePlaneSIR =
-      stateModifier modify {
-        dynamic.updateSIRs[MicMacState](
+      stateModifier apply {
+        dynamic.updateSIRs(
           planeIntegrator,
-          MicMacState.flyingPlanes composeTraversal
-            Each.each composeLens
-            Plane.sir
+          MicMacState.flyingPlanes composeTraversal Each.each composeLens Plane.sir
         )
       }
 
@@ -119,17 +114,17 @@ object Test extends App {
       _ <- updateMaxStepI[M]
       s <- updateStep[M]
       _ <- updateInfectedNodes[M]
-      _ <- implicitly[Log[M]].print(s"Step $s")
-    } yield ()
+    } yield s
   }
 
   def end = or(endOfEpidemy[M], stopAfter[M](20000))
-  def loop = evolve.until(end)
+
+  def log(s: Int) = implicitly[Log[M]].print(s"Step $s")
 
   def simulation =
     for {
       _ <- initState
-      _ <- loop
+      _ <- (evolve flatMap log).until(end)
       ind <- observable.indicators[M]
     } yield ind
 

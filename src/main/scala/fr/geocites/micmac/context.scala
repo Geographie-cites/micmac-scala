@@ -99,6 +99,6 @@ object context {
       ModelState.interpreter :&:
       Log.interpreter
 
-  val context = freedsl.dsl.merge(Step, Observable, Random, ModelState, Log)
+  val merged = freedsl.dsl.merge(Step, Observable, Random, ModelState, Log)
 
 }

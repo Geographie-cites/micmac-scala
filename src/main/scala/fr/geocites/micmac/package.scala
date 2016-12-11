@@ -72,24 +72,4 @@ package object micmac {
 
   @Lenses case class MicMacState(network: Network, flyingPlanes: Vector[Plane])
 
-
-  implicit class MonadDecorator[M[_]: Monad, A](m: M[A]) {
-    def until(end: M[Boolean]): M[A] = {
-      def stop(a: A): Either[Unit, A] = Right(a)
-      val continue: Either[Unit, A] = Left(Unit)
-
-      def loop = Monad[M].tailRecM[Unit, A](Unit) { i =>
-        val comp =
-          for {
-            a <- m
-            b <- end
-          } yield (b, a)
-
-        comp.map { case (e, a) => (if(e) stop(a) else continue) }
-      }
-
-      loop
-    }
-  }
-
 }
