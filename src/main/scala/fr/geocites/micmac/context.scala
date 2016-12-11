@@ -34,10 +34,10 @@ object context {
       var step = 0
 
       def interpret[_] = {
-        case get() => step
+        case get() => Right(step)
         case increment() =>
           step += 1
-          step
+          Right(step)
       }
     }
   }
@@ -51,12 +51,16 @@ object context {
     def interpreter = new Interpreter[Id] {
       var state: Option[MicMacState] = None
 
-      //FIXME use onion
       def interpret[_] = {
-        case get() => state.getOrElse(throw new RuntimeException("state as not been set"))
-        case set(v) => state = Some(v)
+        case get() => state match {
+          case Some(s) => Right(s)
+          case None => Left(StateNotSet)
+        }
+        case set(v) => Right(state = Some(v))
       }
     }
+
+    case object StateNotSet extends Error
   }
 
   @dsl trait ModelState[M[_]] {
@@ -70,15 +74,14 @@ object context {
       var infectionStep: Vector[Option[Long]] = Vector.empty
 
       def interpret[_] =  {
-        case getMaxIStep() => maxIStep
-        case setMaxIStep(s) => maxIStep = s
-        case getInfectionStep() => infectionStep
-        case setInfectionStep(v) => infectionStep = v
+        case getMaxIStep() => Right(maxIStep)
+        case setMaxIStep(s) => Right(maxIStep = s)
+        case getInfectionStep() => Right(infectionStep)
+        case setInfectionStep(v) => Right(infectionStep = v)
       }
     }
 
   }
-
 
   @Lenses case class MaxIStep(step: Long, value: Double)
 
@@ -89,17 +92,6 @@ object context {
     def setInfectionStep(v: Vector[Option[Long]]): M[Unit]
   }
 
-  type DSL =
-    Step.DSL :||:
-    Observable.DSL :||:
-    ModelState.DSL :||:
-    Random.DSL :||:
-    Log.DSL
-
-  val DSL = freek.DSL.Make[DSL]
-
-  type Context[T] = Free[DSL.Cop, T]
-
   def interpreter(seed: Long) =
     Step.interpreter :&:
       Observable.interpreter :&:
@@ -107,10 +99,6 @@ object context {
       ModelState.interpreter :&:
       Log.interpreter
 
-  implicit def random = Random.impl[DSL]
-  implicit def log = Log.impl[DSL]
-  implicit def step = Step.impl[DSL]
-  implicit def modelState = ModelState.impl[DSL]
-  implicit def observable = Observable.impl[DSL]
+  val context = freedsl.dsl.merge(Step, Observable, Random, ModelState, Log)
 
 }

@@ -30,6 +30,7 @@ import cats.free._
 import context._
 import observable._
 import stop._
+import freedsl.log.Log
 
 object Test extends App {
 
@@ -58,8 +59,10 @@ object Test extends App {
       nbAirports = nodes
     )
 
+  import context.context._
+
   def airports =
-    randomAirports[Context](
+    randomAirports[M](
       territory,
       (index, x, y, infected) =>
         Airport(
@@ -72,15 +75,17 @@ object Test extends App {
       nodes
     )
 
-  def initState =
-    for {
-      a <- airports
-      network <- randomNetwork[Context](edges, a)
-      _ <- modelState.set(MicMacState(network, Vector.empty))
-    } yield ()
+  def initState = for {
+    a <- airports
+    network <- randomNetwork[M](edges, a)
+    _ <- implicitly[ModelState[M]].set(MicMacState(network, Vector.empty))
+  } yield ()
 
   def evolve = {
-    def stateModifier = freedsl.modifier(context.modelState.get, context.modelState.set)
+    def stateModifier = {
+      def modelState = implicitly[ModelState[M]]
+      freedsl.modifier(modelState.get, modelState.set)
+    }
 
     def updateAirportSIR =
       stateModifier modify {
@@ -105,29 +110,29 @@ object Test extends App {
     for {
       _ <- updateAirportSIR
       _ <- updatePlaneSIR
-      _ <- planeDepartures[Context](
+      _ <- planeDepartures[M](
          planeCapacity = planeCapacity,
          populationToFly = populationToFly,
-         destination = dynamic.randomDestination[Context],
+         destination = dynamic.randomDestination[M],
          buildSIR = sir)
-      _ <- planeArrivals[Context](planeSpeed)
-      _ <- updateMaxStepI[Context]
-      s <- updateStep[Context]
-      _ <- updateInfectedNodes[Context]
-      _ <- log.print(s"Step $s")
+      _ <- planeArrivals[M](planeSpeed)
+      _ <- updateMaxStepI[M]
+      s <- updateStep[M]
+      _ <- updateInfectedNodes[M]
+      _ <- implicitly[Log[M]].print(s"Step $s")
     } yield ()
   }
 
-  def end = or(endOfEpidemy[Context], stopAfter[Context](20000))
+  def end = or(endOfEpidemy[M], stopAfter[M](20000))
   def loop = evolve.until(end)
 
   def simulation =
     for {
       _ <- initState
       _ <- loop
-      ind <- observable.indicators[Context]
+      ind <- observable.indicators[M]
     } yield ind
 
-  println(simulation.interpret(interpreter(42)))
+  println(result(simulation, interpreter(42)))
 
 }
