@@ -15,21 +15,23 @@
   * along with this program.  If not, see <http://www.gnu.org/licenses/>.
   *
   */
-package fr.geocites.micmac
+package fr.geocites.micmac.test
 
+import fr.geocites.micmac._
 import network._
-import monocle.std.all._
-import monocle.function._
-import dynamic._
-import concurrent.duration._
-import integrator._
 import context._
+import dynamic._
+import integrator._
 import observable._
 import stop._
-
-import cats.implicits._
 import freedsl.log._
 import freedsl.tool._
+import cats._
+import cats.implicits._
+import monocle.function._
+import monocle.std.all._
+
+import scala.concurrent.duration._
 
 object Test extends App {
 
@@ -42,8 +44,7 @@ object Test extends App {
   val planeCapacity = 80
   val planeSpeed = 0.5
 
-  val airportIntegrator = integrator.integrateSIR(0.01)
-  val planeIntegrator = integrator.integrateSIR(0.01)
+  val sirIntegrator = integrator.integrateSIR(0.01)
 
   def sir(s: Double, i: Double, r: Double) =
     SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
@@ -51,7 +52,7 @@ object Test extends App {
   val populationToFly =
     dynamic.populationToFly(
       sir = sir(s = populationByNode - 1, i = 1, r = 0),
-      integrator = airportIntegrator,
+      integrator = sirIntegrator,
       epidemyDuration = 60 days,
       epsilon = 0.001,
       mobilityRate = 0.017,
@@ -78,56 +79,18 @@ object Test extends App {
     _ <- implicitly[ModelState[M]].set(MicMacState(network, Vector.empty))
   } yield ()
 
-  def evolve = {
-    def stateModifier = {
-      def modelState = implicitly[ModelState[M]]
-      modifier(modelState.get, modelState.set)
-    }
 
-    def updateAirportSIR =
-      stateModifier apply {
-        dynamic.updateSIRs(
-          airportIntegrator,
-          MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.sir
-        )
-      }
-
-    def updatePlaneSIR =
-      stateModifier apply {
-        dynamic.updateSIRs(
-          planeIntegrator,
-          MicMacState.flyingPlanes composeTraversal Each.each composeLens Plane.sir
-        )
-      }
-
-
-
-    for {
-      _ <- updateAirportSIR
-      _ <- updatePlaneSIR
-      _ <- planeDepartures[M](
-         planeCapacity = planeCapacity,
-         populationToFly = populationToFly,
-         destination = dynamic.randomDestination[M],
-         buildSIR = sir)
-      _ <- planeArrivals[M](planeSpeed)
-      _ <- updateMaxStepI[M]
-      s <- updateStep[M]
-      _ <- updateInfectedNodes[M]
-    } yield s
-  }
-
+  def evolve = simulation.step[M](sirIntegrator, sirIntegrator, planeCapacity, planeSpeed, sir(_,_,_), populationToFly)
   def end = or(endOfEpidemy[M], stopAfter[M](200000))
-
   def log(s: Int) = implicitly[Log[M]].print(s"Step $s")
 
-  def simulation =
+  def s =
     for {
       _ <- initState
       _ <- (evolve flatMap log).until(end)
       ind <- observable.indicators[M]
     } yield ind
 
-  println(result(simulation, interpreter(420)))
+  println(result(s, interpreter(420)))
 
 }

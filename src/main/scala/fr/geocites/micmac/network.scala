@@ -48,6 +48,27 @@ object network {
     } yield airports
   }
 
+  def starNetwork(
+    territory: Territory,
+    buildAirport: (Int, Double, Double, Int) => Airport,
+    infected: Vector[Int]) = {
+    val number = infected.size
+    val (centerX, centerY) = (territory.length / 2, territory.width / 2)
+    val radius = math.min(territory.length, territory.width) / 4
+    val deltaRadian = (2 * math.Pi) / number
+
+    val neigbours =
+      (0 until number).map { i =>
+        val radian = i * deltaRadian
+        val nX = centerX + radius * math.cos(math.toDegrees(radian))
+        val nY = centerY + radius * math.sin(math.toDegrees(radian))
+        buildAirport(i + 1, nX, nY, infected(i))
+      }
+
+    val center = buildAirport(0, centerX, centerY, infected(0))
+
+    Network(Vector(center) ++ neigbours, neigbours.flatMap(n => Seq(center.index -> n.index, n.index -> center.index)).toVector)
+  }
 
   def completeNetwork(edges: Int, airports: Vector[Airport]) = {
     def fullSet =

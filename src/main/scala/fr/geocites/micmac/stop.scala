@@ -28,7 +28,7 @@ object stop {
     def finished(maxIStep: Option[MaxIStep], step: Long, state: MicMacState) =
       maxIStep match {
         case Some(maxIStep) =>
-          if(step >= maxIStep.step + 1) total(_.i)(state) < 1.0
+          if(step >= maxIStep.totalI.step + 1) allSIR(state).map(_.i).sum < 1.0
           else false
         case None => false
       }

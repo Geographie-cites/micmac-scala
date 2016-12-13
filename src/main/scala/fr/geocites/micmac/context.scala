@@ -83,7 +83,8 @@ object context {
 
   }
 
-  @Lenses case class MaxIStep(step: Long, value: Double)
+  case class StepValue(step: Long, value: Double)
+  @Lenses case class MaxIStep(totalI: StepValue, infectedByAirport: Vector[StepValue])
 
   @dsl trait Observable[M[_]] {
     def getMaxIStep: M[Option[MaxIStep]]

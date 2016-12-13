@@ -37,6 +37,8 @@ import freedsl.random._
 
 object dynamic {
 
+  type BuildSIR = (Double, Double, Double) => SIR
+
   def populationToFly(
     sir: SIR,
     integrator: Integrator,
@@ -73,7 +75,7 @@ object dynamic {
     planeCapacity: Int,
     populationToFly: Double,
     destination: (Airport, Network) => M[Airport],
-    buildSIR: (Double, Double, Double) => SIR)(implicit step: Step[M], state: ModelState[M], rng: Random[M]) = {
+    buildSIR: BuildSIR)(implicit step: Step[M], state: ModelState[M], rng: Random[M]) = {
 
     def departures(state: MicMacState) =
       state.network.airports.traverseU {

@@ -25,37 +25,44 @@ import context._
 
 object observable {
 
-  def total(on: SIR => Double)(state: MicMacState) =
-    state.flyingPlanes.map(p => on(p.sir)).sum + state.network.airports.map(a => on(a.sir)).sum
+  def allSIR(state: MicMacState) =
+    state.flyingPlanes.map(_.sir) ++ state.network.airports.map(_.sir)
 
   def updateMaxStepI[M[_]: Monad](implicit obs: Observable[M], state: ModelState[M], step: Step[M]) = {
-    def update(step: Long, totalIValue: Double): M[Option[MaxIStep]] =
+    def update(step: Long, totalIValue: Double, airportIValues: Vector[Double]): M[Option[MaxIStep]] = {
       modifier(obs.getMaxIStep, obs.setMaxIStep) apply {
-        case Some(current) => if (totalIValue > current.value) Some(MaxIStep(step, totalIValue)) else Some(current)
-        case None => Some(MaxIStep(step, totalIValue))
+        case Some(current) =>
+          val newTotalIValue = if (totalIValue > current.totalI.value) StepValue(step, totalIValue) else current.totalI
+          val newInfectedByAirport =
+            (current.infectedByAirport zip airportIValues).map { case(cur, av) =>
+              if(av > cur.value) StepValue(step, av) else cur
+            }
+          Some(MaxIStep(newTotalIValue, newInfectedByAirport))
+        case None => Some(MaxIStep(StepValue(step, totalIValue), airportIValues.map(StepValue(step, _))))
       }
+    }
 
     for {
       state <- state.get
-      totalIValue = total(SIR.i.get)(state)
+      totalIValue = allSIR(state).map(_.i).sum
       step <- step.get
-      _ <- update(step, totalIValue)
+      _ <- update(step, totalIValue, state.network.airports.map(_.sir.i))
     } yield ()
   }
 
-  case class Indicators(maxIStep: MaxIStep, infectedRatio: Double)
+  case class Indicators(maxIStep: Option[MaxIStep], infectedRatio: Double)
 
   def indicators[M[_]: Monad](implicit obs: Observable[M], stateM: ModelState[M]) = {
     def infectedRatio(state: MicMacState) = {
-      def totalPopulation = total(_.total)(state)
-      def recovered = total(_.r)(state)
+      def totalPopulation = allSIR(state).map(_.total).sum
+      def recovered = allSIR(state).map(_.r).sum
       recovered / totalPopulation
     }
 
     for {
       state <- stateM.get
       maxIStep <- obs.getMaxIStep
-    } yield maxIStep.map(mis => Indicators(mis, infectedRatio(state)))
+    } yield Indicators(maxIStep, infectedRatio(state))
   }
 
 
