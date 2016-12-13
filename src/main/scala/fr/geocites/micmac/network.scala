@@ -48,6 +48,17 @@ object network {
     } yield airports
   }
 
+
+  def completeNetwork(edges: Int, airports: Vector[Airport]) = {
+    def fullSet =
+      for {
+        i <- 0 until airports.size
+        j <- 0 until airports.size
+        if i != j
+      } yield (i, j)
+    Network(airports, fullSet.toVector)
+  }
+
   def randomNetwork[M[_]: Monad](edges: Int, airports: Vector[Airport])(implicit rng: Random[M], modelState: ModelState[M]) = {
 
     def fullSet =

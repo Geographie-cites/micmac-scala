@@ -30,9 +30,9 @@ import cats.free._
 import cats.implicits._
 import cats._
 import freek._
-import sir._
 
 import context._
+import integrator._
 import freedsl.random._
 
 object dynamic {
@@ -103,7 +103,11 @@ object dynamic {
         def updatePopulationToFly = (MicMacState.network composeTraversal Network.airportsTraversal composeLens Airport.populationToFly) modify (_ + populationToFly)
         def addDepartingPlanes = MicMacState.flyingPlanes modify(_ ++ departedPlanes.flatten)
 
-        (setNewAirports andThen updatePopulationToFly andThen addDepartingPlanes) (modelState)
+        val newState = (setNewAirports andThen updatePopulationToFly andThen addDepartingPlanes) (modelState)
+        (MicMacState.network composeTraversal Network.airportsTraversal ).getAll(newState).foreach {
+          a => assert(a.sir.total >= 0, s"${a.sir.total}")
+        }
+        newState
       }
 
     for {
@@ -120,7 +124,7 @@ object dynamic {
       val to =  airports(plane.destination)
       val distance = math.sqrt(math.pow(to.x - from.x, 2) + math.pow(to.y - from.y, 2))
       val flightDuration = distance / planeSpeed
-      flightDuration >= (step - plane.departureStep)
+      (step - plane.departureStep) >= flightDuration
     }
 
     def dispatch(airports: Vector[Airport], arrived: List[Plane]): Vector[Airport] =
@@ -156,29 +160,38 @@ object dynamic {
       airport: Airport,
       planeCapacity: Int,
       buildPlane: (Int, Int, Int) => M[Plane])(implicit rng: Random[M]) = {
-        def multinomial(v: Vector[Double], d: Double, i: Int = 0): Int =
-          if (d <= v(i)) i else multinomial(v, d - v(i), i + 1)
+        def multinomial(v: Vector[Int]) = {
+          def multinomial0(d: Int, i: Int): Int =
+            v.lift(i) match {
+              case Some(v) => if (d < v) i else multinomial0(d - v, i + 1)
+              case None => i - 1
+            }
 
-        def fillPlane(airport: Airport, plane: Plane): M[(Airport, Plane)] = {
-          def boardPassenger(d: Double) = {
-            val selected = multinomial(Airport.stock.get(airport), d * Airport.population(airport))
-            def updateAirport = (Airport.stock composeOptional index(selected)).modify(_ - 1) andThen Airport.populationToFly.modify(_ - 1)
-            val newAirport = updateAirport(airport)
-            val newPlane = (Plane.stock composeOptional index(selected)).modify(_ + 1)(plane)
-            fillPlane(newAirport, newPlane)
-          }
-
-          if (Plane.passengers(plane) >= plane.capacity) (airport, plane).pure[M]
-          else
-            for {
-              d <- rng.nextDouble
-              p <- boardPassenger(d)
-            } yield p
+          rng.nextInt(v.sum).map(d => multinomial0(d, 0))
         }
 
+
+        def discreteStock(airport: Airport) = Airport.stock.get(airport).map { math.floor(_).toInt }
+
+        def fillPlane(airport: Airport, plane: Plane) =
+          Monad[M].tailRecM((airport, plane)) { case(airport, plane) =>
+            def updateAirport(selected: Int) = (Airport.stock composeOptional index(selected)).modify(_ - 1) andThen Airport.populationToFly.modify(_ - 1)
+
+            def boardPassenger =
+              for {
+                selected <- multinomial(discreteStock(airport))
+                newAirport = updateAirport(selected)(airport)
+                newPlane = (Plane.stock composeOptional index(selected)).modify(_ + 1)(plane)
+              } yield Left((newAirport, newPlane)): Either[(Airport, Plane), (Airport, Plane)]
+
+            if (Plane.passengers(plane) >= plane.capacity) (Right((airport, plane)): Either[(Airport, Plane), (Airport, Plane)]).pure[M]
+            else boardPassenger
+          }
+
+
         def fillPlanes(airport: Airport, planes: List[Plane] = List.empty): M[(Airport, List[Plane])] =
-        // Plane should be full to leave
-          if (Airport.populationToFly.get(airport) < planeCapacity) (airport, planes).pure[M]
+         // Plane should be full to leave and airport should contain enough passengers
+          if (Airport.populationToFly.get(airport) < planeCapacity || discreteStock(airport).sum < planeCapacity) (airport, planes).pure[M]
           else
             for {
               plane <- buildPlane(0, 0, 0)

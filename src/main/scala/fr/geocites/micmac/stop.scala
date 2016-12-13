@@ -33,6 +33,7 @@ object stop {
         case None => false
       }
 
+
     for {
       s <- step.get
       state <- stateM.get
@@ -43,10 +44,12 @@ object stop {
   def stopAfter[M[_]: Monad](s: Long)(implicit step: Step[M]) = step.get.map { _ >= s }
 
 
-  def or[M[_]: Monad](s1:  M[Boolean], s2: M[Boolean]) =
-    for {
-      c1 <- s1
-      c2 <- s2
-    } yield c1 || c2
+  def or[M[_]: Monad](s1: M[Boolean]*) =
+    s1.foldLeft(false.pure[M]) { (c1, c2) =>
+      for {
+        b1 <- c1
+        b2 <- c2
+      } yield b1 || b2
+    }
 
 }

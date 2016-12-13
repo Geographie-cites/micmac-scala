@@ -22,7 +22,7 @@ import monocle.std.all._
 import monocle.function._
 import dynamic._
 import concurrent.duration._
-import sir._
+import integrator._
 import context._
 import observable._
 import stop._
@@ -42,8 +42,8 @@ object Test extends App {
   val planeCapacity = 80
   val planeSpeed = 0.5
 
-  val airportIntegrator: Integrator = integrator.integrateSIR(0.01)
-  val planeIntegrator: Integrator = integrator.integrateSIR(0.01)
+  val airportIntegrator = integrator.integrateSIR(0.01)
+  val planeIntegrator = integrator.integrateSIR(0.01)
 
   def sir(s: Double, i: Double, r: Double) =
     SIR(s = s, i = i, r = r,  alpha = alpha, beta = beta)
@@ -65,9 +65,7 @@ object Test extends App {
       territory,
       (index, x, y, infected) =>
         Airport(
-          index,
-          x,
-          y,
+          index, x, y,
           sir(s = populationByNode - infected, infected, r = 0),
           populationToFly
         ),
@@ -102,6 +100,8 @@ object Test extends App {
         )
       }
 
+
+
     for {
       _ <- updateAirportSIR
       _ <- updatePlaneSIR
@@ -117,7 +117,7 @@ object Test extends App {
     } yield s
   }
 
-  def end = or(endOfEpidemy[M], stopAfter[M](20000))
+  def end = or(endOfEpidemy[M], stopAfter[M](200000))
 
   def log(s: Int) = implicitly[Log[M]].print(s"Step $s")
 
@@ -128,6 +128,6 @@ object Test extends App {
       ind <- observable.indicators[M]
     } yield ind
 
-  println(result(simulation, interpreter(42)))
+  println(result(simulation, interpreter(420)))
 
 }
