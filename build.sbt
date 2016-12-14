@@ -9,6 +9,7 @@ lazy val root = Project("micmac", file(".")) settings (
   libraryDependencies += "com.github.julien-truffaut"  %%  "monocle-core"    % monocleVersion,
   libraryDependencies += "com.github.julien-truffaut"  %%  "monocle-generic" % monocleVersion,
   libraryDependencies += "com.github.julien-truffaut"  %%  "monocle-macro"   % monocleVersion,
+  libraryDependencies += "com.squants"  %% "squants"  % "0.7.1-SNAPSHOT",
 
 
   libraryDependencies += "fr.iscpif.freedsl" %% "all" % "0.2-SNAPSHOT",

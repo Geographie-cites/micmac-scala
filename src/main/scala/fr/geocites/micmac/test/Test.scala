@@ -31,7 +31,7 @@ import cats.implicits._
 import monocle.function._
 import monocle.std.all._
 
-import scala.concurrent.duration._
+import squants.time.TimeConversions._
 
 object Test extends App {
 

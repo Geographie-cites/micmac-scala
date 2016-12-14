@@ -1,7 +1,7 @@
 package fr.geocites.micmac.test
 
 import fr.geocites.micmac._
-import concurrent.duration._
+import squants.time.TimeConversions._
 import cats._
 import cats.implicits._
 import stop._

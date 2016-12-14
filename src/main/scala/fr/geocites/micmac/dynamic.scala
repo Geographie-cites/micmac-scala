@@ -20,8 +20,7 @@ package fr.geocites.micmac
 
 
 
-import scala.concurrent.duration._
-//
+import squants.time._
 import monocle.std.vector._
 import monocle.function.all._
 
@@ -42,7 +41,7 @@ object dynamic {
   def populationToFly(
     sir: SIR,
     integrator: Integrator,
-    epidemyDuration: Duration,
+    epidemyDuration: Time,
     mobilityRate: Double,
     epsilon: Double,
     nbAirports: Int): Double = {
@@ -56,7 +55,7 @@ object dynamic {
     val nbSteps = steps(sir)
     //def dt = epidemyDuration.toHours.toDouble / nbSteps
 
-    def totalPopulationToFly = (sir.total * nbAirports) * mobilityRate * epidemyDuration.toDays.toDouble
+    def totalPopulationToFly = (sir.total * nbAirports) * mobilityRate * epidemyDuration.toDays
 
     (totalPopulationToFly / nbSteps) / nbAirports
   }
