@@ -30,7 +30,6 @@ import cats._
 import cats.implicits._
 import monocle.function._
 import monocle.std.all._
-
 import squants.time.TimeConversions._
 
 object Test extends App {
@@ -60,6 +59,7 @@ object Test extends App {
     )
 
   import merged._
+  import merged.implicits._
 
   def airports =
     randomAirports[M](

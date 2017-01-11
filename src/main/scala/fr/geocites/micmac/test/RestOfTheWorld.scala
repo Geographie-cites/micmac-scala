@@ -55,6 +55,7 @@ object RestOfTheWorld extends App {
 
   import context._
   import merged._
+  import merged.implicits._
 
   val simulations =
     networks.map { network =>
