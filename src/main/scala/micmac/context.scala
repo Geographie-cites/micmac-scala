@@ -15,7 +15,7 @@
   * along with this program.  If not, see <http://www.gnu.org/licenses/>.
   *
   */
-package fr.geocites.micmac
+package micmac
 
 import freedsl.dsl._
 import freedsl.random._
@@ -94,12 +94,8 @@ object context {
   }
 
   def interpreter(seed: Long) =
-    Step.interpreter :&:
-      Observable.interpreter :&:
-      Random.interpreter(seed) :&:
-      ModelState.interpreter :&:
-      Log.interpreter
+    merge(Step.interpreter, Observable.interpreter, Random.interpreter(seed), ModelState.interpreter, Log.interpreter)
 
-  val merged = freedsl.dsl.merge(Step, Observable, Random, ModelState, Log)
+  val merged = merge(Step, Observable, Random, ModelState, Log)
 
 }

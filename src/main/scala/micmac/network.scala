@@ -16,7 +16,7 @@
   *
   */
 
-package fr.geocites.micmac
+package micmac
 
 
 import cats._
@@ -52,7 +52,8 @@ object network {
     territory: Territory,
     buildAirport: (Int, Double, Double, Int) => Airport,
     infected: Vector[Int]) = {
-    val number = infected.size
+
+    val number = infected.size - 1
     val (centerX, centerY) = (territory.length / 2, territory.width / 2)
     val radius = math.min(territory.length, territory.width) / 4
     val deltaRadian = (2 * math.Pi) / number

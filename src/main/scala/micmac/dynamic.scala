@@ -16,7 +16,7 @@
   *
   */
 
-package fr.geocites.micmac
+package micmac
 
 
 

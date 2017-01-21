@@ -12,7 +12,7 @@ lazy val root = Project("micmac", file(".")) settings (
   libraryDependencies += "com.squants"  %% "squants"  % "0.7.1-SNAPSHOT",
 
 
-  libraryDependencies += "fr.iscpif.freedsl" %% "all" % "0.4",
+  libraryDependencies += "fr.iscpif.freedsl" %% "all" % "0.5",
 
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
 

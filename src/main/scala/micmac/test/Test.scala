@@ -15,9 +15,9 @@
   * along with this program.  If not, see <http://www.gnu.org/licenses/>.
   *
   */
-package fr.geocites.micmac.test
+package micmac.test
 
-import fr.geocites.micmac._
+import micmac._
 import network._
 import context._
 import dynamic._
@@ -38,6 +38,7 @@ object Test extends App {
   val nodes = 50
   val edges = 500
   val populationByNode = 4000
+
   val alpha = 0.2
   val beta = 0.5
   val planeCapacity = 80
@@ -91,6 +92,6 @@ object Test extends App {
       ind <- observable.indicators[M]
     } yield ind
 
-  println(result(s, interpreter(420)))
+  println(interpreter(420).run(s))
 
 }

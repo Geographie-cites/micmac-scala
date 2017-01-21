@@ -15,7 +15,7 @@
   * along with this program.  If not, see <http://www.gnu.org/licenses/>.
   *
   */
-package fr.geocites.micmac
+package micmac
 
 import cats._
 import cats.implicits._

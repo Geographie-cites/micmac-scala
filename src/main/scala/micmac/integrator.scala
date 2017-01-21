@@ -15,7 +15,7 @@
   * along with this program.  If not, see <http://www.gnu.org/licenses/>.
   *
   */
-package fr.geocites.micmac
+package micmac
 
 import org.apache.commons.math3.ode.FirstOrderDifferentialEquations
 import org.apache.commons.math3.ode.nonstiff.ClassicalRungeKuttaIntegrator

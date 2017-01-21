@@ -1,4 +1,4 @@
-package fr.geocites.micmac
+package micmac
 
 object tool {
 
